@@ -1,0 +1,245 @@
+---
+title: "Teacher types - write up for Loic"
+author: "Meenakshi Parameshwaran"
+date: "31 July 2015"
+output: html_document
+---
+
+## Intro ##
+
+This is a short write up of my Pearson teacher types analysis for Loic. If you want to read the full analysis and steps through it, take a look the https://www.dropbox.com/s/sup40hda0nzfwgt/teachertypesv2.html?dl=0 document.
+
+You probably want to rename the teacher types. Currently I have called them:
+
+1. Schoolcentric - those who are ambitious and kept in teaching by school-specific factors.
+2. Content - those who seem content with their teaching roles and are competent in their jobs.
+3. Perks - those who like the pay and holidays, and would move if it were convenient and suited their family commitments
+4.  Pragmatic - those who are ambitious and care about social justice, but also have to reconcile family life and convenience. Cost of living and being near friends also matter.
+5. Justice - those who are social justice oriented (want to make a difference etc.) and also like school culture and CPD.
+
+**There is a full dataset with these teacher type values as a column in dropbox.
+https://www.dropbox.com/s/vfotfh2zugfdw0a/pearson_with_types.csv?dl=0**
+
+_You can us the csv file to make descriptive statistics to describe the sample e.g. percentage of the sample that were female by teacher type etc._
+
+## Approach ##
+
+To identify teacher types in the Pearson dataset, I did the following:
+
+1. Principal components analysis.
+
+I did this separately three times - one on the 25 items relating to why respondents teach; one on the 21 items relating to where respondents teach; and one on the 21 items relating to what would encourage respondents to teach in another area. This resulted in 22 principal components being identified (7 from whyteach; 8 from whereteach; 7 from whymove).
+
+2. k-means clustering.
+
+I then fed in all 22 principal components into a k-means clustering algorithm to see how the components clustered together. This led to 5 clusters of teacher types being identified.
+
+3. Descriptives of teacher types.
+
+I made some descriptive tables showing the distribution of teacher types by various teacher characteristics.
+
+4. Multinomial logistic regression of teacher types.
+
+I did some more formal modelling of the associations between various characteristics and the likelihood of belonging to different teacher types.
+
+5. Binary logistic regression of leaving the profession.
+
+Finally I did some analysis looking at the association between teacher types and likelihood of responding positively to the question about considering leaving the profession.
+
+## Teacher types ##
+
+The k-means clustering was performed on 702 observations (rows with missing values were omitted). The clustering was performed on 22 variables, which were the principal components derived from an earlier analysis.
+
+These 22 principal components were derived by running a prinicipal component analysis on 67 underlying variables. The PC analysis was actually run three times on three separate subsets of data - each subset of data consisted of connected variables. In other words, the first principal component analysis was run on the 25 variables about why respondents started and remained in teaching (I refer to these PCs are whyteach PCs); the second principal component analysis was run on the 21 variables about where respondents choose to teach (I refer to these PCs are whereteach PCs); the third PC was run on the 21 variables asking respondents about the factors that would encourage them to move to teach in another area (I refer to these PCs as whymove PCs).
+
+After running the kmeans, 5 clusters were settled on to ease intepretability. Note that I tried to do clustering separately just for the whyteach PCs, but this didn't help distinguish teacher types at all. The most variation seems to come from the whymove PCs so this might be a better subset to use, but I thought it was best to try to use all the data to identify more holistic teacher types (rather than just teacher types with regards to motivations to move area).
+
+The clusters were distributed as follows:
+
+Teacher Cluster | Number | Percentage
+--------------- | ------ | ----------
+1               | 125    | 17.8%
+2               | 93     | 13.2%
+3               | 146    | 20.89%
+4               | 206    | 29.3%
+5               | 132    | 18.8%
+
+``` {r making sense of the clusters - whyteach, echo = F, warning = F, message = F, error = F}
+
+# set working directory
+setwd(dir = "/Users/meenaparam/Dropbox/LKMco Work/pearson/Pearson data and analysis")
+
+# load the stored RData workspace which has all the calculations in it
+load("teachertypes2_workspace.RData")
+
+# load the graph
+c
+
+```
+
+The above plot shows the distributions of mean PCs by teacher type (called "1" through to "5"). We can see that there isn't really much difference across the teacher types - the "whymove" principal components seem to elicit the strongest opinions and most difference.
+
+#### Type 1 teachers - ambitious and competent, school specific, family life matters ####
+This class of teachers can be described as:
+
+* teaching because they are interested in the subject, well qualified to teach, want to progress in their careers, and experience quality leadership and management in their schools. They are not teaching because of the pay, holidays, or because they need a job.
+* teaching in areas that are convenient for the family, where the school culture suits them and the pupil characteristics are a draw, and where the reputation of local schools attracts them. They do not teach in areas near their friends or university, and cost of living is not an issue.
+* moving to areas most strongly because of school specific reasons.
+
+#### Type 2 teachers - competent, happy where they are, school-specific factors keep them in teaching, won't move #### 
+This class of teachers can be described as:
+
+As less extreme version of Type 1 teachers i.e. similar in pattern but lower scores. The additional difference are that these teachers:
+* work in the areas they do because of many school specific factors i.e. behaviour and attainment of pupils in a particular school, culture of a particular school, quality of leadership and management in a particular school.
+* pay, holidays, and needing a job matter a bit more in terms of why they teach
+* they are the least willing group to move, but would move for better pay and also if it was convenient for the family.
+
+#### Type 3 teachers - like the job perks, family matters, school-specific, move to areas for more perks and convenience ####
+These teachers can be described as:
+
+* teaching partly because of pay, holidays and needing a job. They mainly teach because of subject interest and liking school culture, and because of quality of leadership and management.
+* teaching in the areas they do because of school-specific factors and because of family and social reasons. They don't teach in the areas they do because of university proximity or cost of living.
+* would be encouraged to move because of pay, being near to a partner, improved quality of life, if the school was commutable, career opportunities for family members, and good educational opportunities for their own children. They would basically move for an improved life so long as their family didn't lose out.
+
+#### Type 4 teachers - ambitious, competent, cost of living, want to be near friends, school-specific factors keeping them in teaching ####
+These teachers are:
+
+* got into teaching and stayed because of subject interest, being well qualified, opportunities for career progression, and quality leadership and management.
+* teaching where they do because of cost of living, quality of life and being near friends. Also because of school specific factors combined with quality of life factors.
+* willing to move to areas where there are school-specific factors attracting them (like behaviour or attainment), and good career opportunities, but also where it is convenient for the family and near to friends, and where they can still make a difference.
+
+#### Type 5 teachers - social justice oriented but pragmatic + competent and ambitious + like school culture  ####
+
+These can be described as:
+
+* the group least likely to be teaching because of pay, holidays or because they needed a job. They are teaching because of subject interest, qualifications, leadership and management, and career progression opportunities. They are also teaching because they really like the culture of schools.
+* teaching in the area they do because of all the typical reasons but also because they want to make a difference and because of the characteristics of pupils at a particular school
+* would be most willing to move to an area where they could make a difference but also if it is convenient for the family and commutable.
+
+## Probability of being a teacher type ##
+
+Here the analysis uses multinomial logistic regression to look at the associations between a range of demographic variables and teacher types.
+
+The model includes variables for:
+
+* position (reference = teacher; other caterogies = MLT; SLT)
+* gender (reference = female; other category = male)
+* region (reference = South; other categories = North; East; Midlands; London)
+* agegroup (reference = 55+; other categories = 18-35; 36-44; 45-54)
+* phase (reference = Secondary; other categories = Primary/Middle; FE; All through)
+
+The outcome variable (the one being predicted) is teacher type:
+
+* reference group = "content" teachers
+* other categories = "perks"; "justice"; "pragmatic"; "schoolcentric"
+
+The model looks like this:
+
+```{r probability of being a teacher type, echo=T, warning=F, message=F, tidy=T}
+
+# look at the model summary results - these are log odds
+summary(m2)
+
+# look at the z scores
+z
+
+# 2-tailed z test - this will show which p-values are <0.05 and so are significant
+p
+
+```
+
+### Plots of belonging to a teacher type ###
+Here are some plots of predicted probabilities of belonging to a teacher type by various other variables:
+
+``` {r plots of teacher types, echo=T}
+
+# gender
+g_gender
+
+# agegroup
+g_agegroup
+
+# region
+g_region
+
+# position
+g_position
+
+# phase
+g_phase
+
+```
+
+## Probability of considering leaving the profession ##
+
+This section of the analysis dichotomised respondents' answers to the question: 
+
+HPW_q18. To what extent do you agree or disagree with the following statement?
+
+"In the last six months (i.e. since January 2015) I have considered leaving the  teaching profession"
+
+Those who reported "strongly agree/tend to agree" were coded as "yes". Those who reported "strongly disagree/disagree" were coded as "no".
+
+```{r leaving the profession descriptives, echo=T, warning=F, message=F, tidy=T}
+
+# dropout tables - how many wanted to leave?
+table(mydf$dropout)
+prop.table(table(mydf$dropout))
+# how does dropout vary by characteristics? (row percentages)
+
+# gender
+prop.table(table(mydf$gender, mydf$dropout), 1)
+
+# position 
+prop.table(table(mydf$position, mydf$dropout), 1)
+
+# phase
+prop.table(table(mydf$phase, mydf$dropout), 1)
+
+# agegroup
+prop.table(table(mydf$agegroup, mydf$dropout), 1)
+
+# region
+prop.table(table(mydf$region, mydf$dropout), 1)
+
+```
+
+
+Let's look at the actual model - this time a binomial logistic regresion as the outcome being modelled is yes/no (considered leaving in the past 6 months).
+
+```{r predicting leaving, echo=F, tidy=T, warning=F, message=F}
+# look at the results
+summary(model_dropout)
+
+# look at the coefficients as odds-ratios (take exponent of logit coefficients)
+exp(model_dropout$coefficients)
+```
+
+The model shows us that:
+
+* Young teachers (18-35) are significantly less likely (odds-ratio = 0.59 - remember, an OR of 1 means equally likely) to say they have considered leaving the profession in the last 6 months compared to the reference group of teachers aged 55+, all else held constant. 
+* All through teachers are also significantly less likely (OR = 0.43) to report wanting to leave compared to secondary teachers, all else held constant.
+* All teacher types are less likely to report considering leaving compared to the reference group of content teachers, all else held constant.
+
+### Now, a few graphs showing the average predicted probabilities of leaving across other variables. ###
+
+*Note, I don't think these graphs are working yet...*
+
+```{r graphs of leaving, echo=F}
+# average predicted probability of considering leaving by region
+g_region_dropout
+
+# average predicted probability of considering leaving by teacher type
+g_type_dropout
+
+```
+
+These graphs aren't really bringing out any major differences. Actually, I'm not sure they're working yet...
+
+Note that there is an "NA" group in teacher type - these are the observations for whom it was not possible to predict a teacher type because they were missing a response (missings include "don't know" responses) on one of the underlying variables that fed into the principal component analysis. All missing responses had to be removed from the PC and k-means stages.
+
+That's all the analysis for now - more will follow after Loic has had a chance to look at it and figure out if it's what he wants/what to pursue next etc.
+
+One thing that we should do is something with the postcodes e.g. some sort of geobatch map plotting teacher types by location?
+
+---END---

@@ -1,0 +1,270 @@
+---
+title: "Identifying teacher types in Pearson Why Teach Data"
+author: "Meenakshi Parameshwaran"
+date: "20 July 2015"
+output: html_document
+---
+## Introduction ##
+
+The purpose of this analysis is to identify any "teacher types" in the "Why Teach" dataset.
+
+If you want to re-run this analysis, choose your own working directory (where your data file is saved) and enter that into the setwd function below.
+
+If you need to install any of the required packages, type something like:
+install.packages("packagename") - put the name of the package you require in the place of packagename. The quotes are needed when you install a package, but not when you load it up. You load a package using:
+library(packagename)
+
+```{r setting working directory}
+# set the working directory 
+setwd("~/Dropbox/LKMco Work/Pearson/Pearson data and analysis")
+
+# list the files in this directory
+list.files()
+```
+
+Now install and load required packages and the dataset. Note that the SPSS version of the dataset is partially labelled.
+
+```{r loading in the data, warning=FALSE, tidy = T}
+# read in the SPSS version of the dataset to an object called df
+library(foreign)
+df <- read.spss(file = "Pearson_Why Teach_RawData 25.06.15.sav",to.data.frame = T)
+
+# alternatively read in the csv version of the dataset to an object called df
+# df <- read.csv(file = "pearson_raw.csv", header = T)
+```
+
+Let me look at the structure of the loaded dataset (an object called "df"") to check everything has loaded in ok. Use the `dim()` function for this.
+
+```{r check dataset has loaded}
+# check the dimensions
+dim(df)
+```
+
+The dimensions seem ok - 1010 observations across 235 variables. This _does_ seem like a lot of variables though, so it's probably a dummy coded dataset (each answer as a yes/no).
+
+Now check the structure of the dataframe in terms of variable types etc. Use the `str()` function for this. (Note that output is suppressed here as not all variables are listed - the df is too long).
+
+```{r check structure of df, eval=FALSE}
+# check the structure in terms of variable types etc.
+str(df)
+```
+
+Just for completeness, let me have a look at a few rows of data. I can see the top six rows using the `head()` function and the bottom six rows using the `tail()` function. (Output suppressed).
+
+```{r looking at head and tail, eval=FALSE}
+
+# look at the head (top 6 rows) of the dataframe
+head(df)
+
+# look at the tail (bottom 6 rows) of the dataframe
+tail(df)
+
+```
+
+I can see that the data is still a bit messy, with lots of empty variables.
+
+## Initial motivations to teach variables ##
+
+Let me cross-check back with the datamap sheet in the "Results for Pearson" excel file. This might help tell me which variable is which.
+
+``` {r look at variable names}
+names(df)
+```
+
+The variables to do with initial motivations to teach (_"Thinking back to your initial decision to become a teacher...How important, if at all, were each of the following in encouraging you to become a teacher"_) are the 12 items from:
+
+* HPW\_q9\_HPW\_q9\_1\_HPW\_q9\_grid
+* HPW\_q9\_HPW\_q9\_2\_HPW\_q9\_grid
+* HPW\_q9\_HPW\_q9\_3\_HPW\_q9\_grid
+* HPW\_q9\_HPW\_q9\_4\_HPW\_q9\_grid
+* HPW\_q9\_HPW\_q9\_5\_HPW\_q9\_grid
+* HPW\_q9\_HPW\_q9\_6\_HPW\_q9\_grid
+* HPW\_q9\_HPW\_q9\_7\_HPW\_q9\_grid
+* HPW\_q9\_HPW\_q9\_8\_HPW\_q9\_grid
+* HPW\_q9\_HPW\_q9\_9\_HPW\_q9\_grid
+* HPW\_q9\_HPW\_q9\_10\_HPW\_q9\_grid
+* HPW\_q9\_HPW\_q9\_11\_HPW\_q9\_grid
+* HPW\_q9\_HPW\_q9\_12\_HPW\_q9\_grid
+
+Let's just focus on the 12 variables I am interested in. Make a new df with just these variables in them.
+
+``` {r make a df with just the initial motivations variables, message=F}
+library(dplyr)
+motiv1 <- dplyr::select(df, matches(".q9"))
+motiv1 <- motiv1[,-c(1)] #get rid of the empty first column
+
+# take a look at how these 12 vars are coded
+str(motiv1) 
+levels(motiv1$HPW_q9_HPW_q9_1_HPW_q9_grid)
+```
+
+These 12 items are coded from 1 to 5.
+
+1. Very important
+2. Fairly important
+3. Not very important
+4. Not at all important
+5. Don't know
+
+I need to recode the don't knows (DKs) to NAs as otherwise they will confuse the analysis.
+
+``` {r recode the DKs in the these 12 items, message = F, tidy = T}
+# load the car package for recoding (get the recode function from it)
+library(car)
+
+# the line below recodes all the 5s to NAs in the 12 variables we have
+motiv1 <- as.data.frame(lapply(motiv1, function(x) {
+    x <- recode(x,'"Don\'t know" = NA ')
+    return(x)
+    }))
+
+# check whether the levels recoding has worked
+levels(motiv1$HPW_q9_HPW_q9_1_HPW_q9_grid) # yes, now only 4 levels
+
+# check type of the variables
+class(motiv1$HPW_q9_HPW_q9_1_HPW_q9_grid) # it's a factor
+
+# now the levels are out of order and need to be reordered from not at all important up to very important
+motiv1 <- as.data.frame(lapply(motiv1, function(x) {ordered(x, levels =  c("Not at all important", "Not very important", "Fairly important", "Very important"))}))
+
+# check the levels have been reordered
+levels(motiv1$HPW_q9_HPW_q9_1_HPW_q9_grid) # yes, reordered now
+
+```
+
+And now let's give the variables some better names.
+
+``` {r renaming initial motivation variables, tidy = T}
+names(motiv1)
+
+newvarnames <- function(x) {
+    names(x) <- c("subj_interest", "desire_work_cyp", "make_diff_pupils", "make_diff_society", "pay", "holidays", "good_at_it", "like_sch_culture", "well_qualified_to_do", "needed_job", "career_prog", "quality_lm")
+    return(x)
+}
+
+motiv1 <- newvarnames(motiv1)
+names(motiv1) # yes, renamed
+
+# just for future info, I  can call dfs <- lapply (dfs, newvarnames) to change the varnames in a list of dfs
+```
+
+Ok, now I'm finally ready to run some grouping analyses!
+
+## Latent class analysis ##
+
+Here's a quick summary on latent class analysis, taken from http://www.r-bloggers.com/latent-class-modeling-election-data/
+
+Latent class analysis is a useful tool that is used to identify groups within multivariate categorical data.  An example of this is the likert scale. In categorical language these groups are known as latent classes. As a simple comparison this can be compared to the k-means multivariate cluster analysis. There are several key differences between the two methods. First, latent class analysis assigns observations to groups based on probability while k-means cluster analysis absolutely assigns observations to groups. While k-means is readily available in many software packages it is only appropriate for continuous data. Latent class analysis is not as widely available in many software packages but it is designed to handle categorical data.
+
+A bit more information on model fit etc. here:
+http://www.john-uebersax.com/stat/faq.htm#nclass
+
+The R package I'll use to do this LCA is poLCA.
+
+### Practice run through to get the code working ###
+
+```{r first LCA on initial teacher motivations, tidy=TRUE}
+library(poLCA)
+
+# a reminder of variable names
+names(motiv1)
+
+# crumbs, turns out for poLCA to run, the data has to be in a numerical format rather than with the word levels we have at the moment e.g. "very important" needs to turn into a 4
+
+# make a new df that has the values stored as numbers instead
+motiv2 <- as.data.frame(lapply(motiv1, function(x) {
+    as.numeric(x)
+} ))
+
+# run poLCA on the motiv2 dataframe, specifying 3 classes to start with and just testing it out on a few variables
+m1 <- poLCA(cbind(subj_interest, desire_work_cyp, make_diff_pupils) ~ 1,
+   maxiter=50000, nclass=3, 
+   nrep=10, data=motiv2) # good, ML estimates hit every time
+
+# have a look at the plot
+plot(m1)
+```
+
+Some intepretation of what I've seen so far.
+
+The part that says:
+
+Estimated class population shares 
+ 0.3161 0.6398 0.0442 
+ 
+Suggests that the first two classes have the bulk of respondents. However, there does seem to be a third class in the data.
+
+The plot shows the distribution of responses to the questions by class. It looks a bit like class 3 are those who don't really care about making a difference to children or working with them.
+
+### Second run through with all the initial motivation variables in the model ###
+
+```{r second LCA on initial teacher motivations, tidy=TRUE}
+# run poLCA on the motiv2 dataframe, specifying 3 classes to start with but with all variables this time
+
+# a reminder of the variable names
+names(motiv2)
+
+m2 <- poLCA(cbind(subj_interest, desire_work_cyp, make_diff_pupils, make_diff_society, pay, holidays, good_at_it, like_sch_culture, well_qualified_to_do, needed_job, career_prog, quality_lm) ~ 1,
+   maxiter=50000, nclass=3, 
+   nrep=10, data=motiv2)
+
+# let's repeat m2 with more repetitions 
+m2 <- poLCA(cbind(subj_interest, desire_work_cyp, make_diff_pupils, make_diff_society, pay, holidays, good_at_it, like_sch_culture, well_qualified_to_do, needed_job, career_prog, quality_lm) ~ 1,
+   maxiter=50000, nclass=3, 
+   nrep=20, data=motiv2)
+
+# have a look at the plot
+plot(m2)
+
+# how well does m2 fit? Look at AIC and BIC to see if they are smaller than other models. Also get the p-value for the G-sq stat.
+
+m2$aic
+m2$bic
+1 - pchisq(m2$Gsq, m2$resid.df) # significant; fits the data
+
+# try with 4 classes
+m3 <- poLCA(cbind(subj_interest, desire_work_cyp, make_diff_pupils, make_diff_society, pay, holidays, good_at_it, like_sch_culture, well_qualified_to_do, needed_job, career_prog, quality_lm) ~ 1,
+   maxiter=50000, nclass=4, 
+   nrep=20, data=motiv2)
+
+# have a look at the plot
+plot(m3)
+
+# how well does m3 fit?
+m3$aic # AIC is smaller than for m2
+m3$bic # BIC is smaller than for m2
+1 - pchisq(m3$Gsq, m3$resid.df) # significant; fits the data
+
+# pattern doesn't seem to be any clearer, let's try 5 classes
+m4 <- poLCA(cbind(subj_interest, desire_work_cyp, make_diff_pupils, make_diff_society, pay, holidays, good_at_it, like_sch_culture, well_qualified_to_do, needed_job, career_prog, quality_lm) ~ 1,
+   maxiter=50000, nclass=5, 
+   nrep=20, data=motiv2)
+
+# have a look at the plot
+plot(m4)
+
+# how well does m4 fit the data?
+m4$aic # AIC is smaller than for m3
+m4$bic # BIC is BIGGER than for m3
+1 - pchisq(m4$Gsq, m4$resid.df) # significant; fits the data
+
+# let's try one more class - 6 classes now
+m5 <- poLCA(cbind(subj_interest, desire_work_cyp, make_diff_pupils, make_diff_society, pay, holidays, good_at_it, like_sch_culture, well_qualified_to_do, needed_job, career_prog, quality_lm) ~ 1,
+   maxiter=50000, nclass=6, 
+   nrep=20, data=motiv2)
+
+# have a look at the plot
+plot(m5)
+
+# how well does m5 fit the data?
+m5$aic 
+m5$aic < m4$aic # AIC is smaller than for m4
+m5$bic 
+m5$bic < m4$bic # BIC is BIGGER than for m4
+1 - pchisq(m5$Gsq, m5$resid.df) # significant; fits the data
+```
+
+The analysis above suggest that a three class model will fit the data sufficiently well, using BIC.
+
+Ok let's start the analyses again on a fresh markdown (v2 of this file)
+

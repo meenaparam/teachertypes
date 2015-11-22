@@ -1,0 +1,764 @@
+---
+title: "Teacher types - LCA"
+author: "Meenakshi Parameshwaran"
+date: "3 August 2015"
+output: html_document
+---
+
+## Introduction ##
+
+This is the third (but original!) of analyses on the "Why Teach" dataset. The purpose of this analysis is to identify any "teacher types" in the "Why Teach" dataset.
+
+If you want to re-run this analysis, choose your own working directory (where your data file is saved) and enter that into the setwd function below.
+
+If you need to install any of the required packages, type something like:
+install.packages("packagename") - put the name of the package you require in the place of packagename. The quotes are needed when you install a package, but not when you load it up. You load a package using:
+library(packagename)
+
+```{r setting working directory}
+# set the working directory 
+setwd("~/Dropbox/LKMco Work/Pearson/Pearson data and analysis")
+
+# list the files in this directory
+list.files()
+```
+
+Now install and load required packages and the dataset. Note that the SPSS version of the dataset is partially labelled.
+
+```{r loading in the data, warning=FALSE, tidy = T, message = F}
+# read in the SPSS version of the dataset to an object called df
+library(foreign)
+df <- read.spss(file = "Pearson_Why Teach_RawData 25.06.15.sav",to.data.frame = T)
+
+# alternatively read in the csv version of the dataset to an object called df
+# df <- read.csv(file = "pearson_raw.csv", header = T)
+
+# look at the variable names
+names(df)
+
+# keep just the variables I'm interested in - motivations and the record number
+motiv1 <- df[, c(1,135:201)]
+
+# recode the don't knows
+library(car)
+motiv1 <- as.data.frame(lapply(motiv1, function(x) {
+    x <- recode(x,'"Don\'t know" = NA ')
+    return(x)
+    }))
+
+# recode the don't knows with a different type of apostrophe in them
+motiv1 <- as.data.frame(lapply(motiv1, function(x) {
+    x <- recode(x,'"Don’t know" = NA ')
+    return(x)
+    }))
+
+# check the structure of the new data frame
+str(motiv1) # good, all the DKs are gone
+```
+
+## Lots of data preparation ##
+
+Because the dataset has five sets of variables in, which have three different sets of responses, I have to split them out into three dataframes. One dataframe for whyteach (this will later become two dataframes - one for whyjoin, and one for whystay), one dataframe for whereteach, and one dataframe for whymove. This will make it easier to recode the variables, order them correctly, run the analyses, and create the predicted classes for each row. Afterwards, I'll have to compile the datasets back together again + add in some interesting demographic variables.
+
+``` {r split out three dataframes, tidy = T}
+names(motiv1)
+
+# make three dataframes according to the column numbers
+whyteach <- motiv1[, c(1:26)]
+whereteach <- motiv1[, c(1, 27:47)]
+whymove <- motiv1[, c(1, 48:68)]
+```
+
+Now recode and set up each dataframe.
+
+First the __whyteach__ dataframe.
+
+```{r prepare whyteach dataframe, tidy=T}
+# check the levels for the whyteach dataframe
+lapply(whyteach, function(x) {levels(x)})
+
+# make a function to reorder the importance scale levels
+likert_imp <- function(x) {ordered(x, levels =  c("Not at all important", "Not very important", "Fairly important", "Very important"))}
+
+# apply that function to whyteach
+whyteach <- data.frame(whyteach[1], lapply(whyteach[2:26], likert_imp)) 
+
+# check the levels for whyteach again
+lapply(whyteach, function(x) {levels(x)})
+
+# now make a function to convert the levels in whyteach to numeric type
+make_numeric <- function(x) {as.numeric(x)}
+
+# apply the function to whyteach
+whyteach <- data.frame(whyteach[1], lapply(whyteach[2:26], make_numeric)) 
+
+# check the structure
+str(whyteach) # great, all ordered numbers with NAs
+
+# now rename the whyteach variables
+names(whyteach)
+whyteach_newvarnames <- function(x) {
+    names(x) <- c("RecordNo", "subj_interest1", "desire_work_cyp1", "make_diff_pupils1", "make_diff_society1", "pay1", "holidays1", "good_at_it1", "like_sch_culture1", "well_qualified_to_do1", "needed_job1", "career_prog1", "quality_lm1", "subj_interest2", "desire_work_cyp2", "make_diff_pupils2", "make_diff_society2", "pay2", "holidays2", "good_at_it2", "like_sch_culture2", "well_qualified_to_do2", "needed_job2", "career_prog2", "quality_lm", "nothing_switch_to")
+    return(x)
+}
+whyteach <- whyteach_newvarnames(whyteach)
+names(whyteach)
+
+# split whyteach into the variables about why someone joins and the variables about why someone stays
+
+whyjoin <- whyteach[, 1:13]
+whystay <- whyteach[, c(1, 14:26)]
+```
+
+Second, prepare the __whereteach__ dataframe.
+
+```{r prepare whereteach dataframe, tidy=T}
+
+# check the levels for the whereteach dataframe
+lapply(whereteach, function(x) {levels(x)}) # levels are already in order
+
+# apply the make_numeric function to whereteach to make the levels numbers
+names(whereteach) # do this to get the column numbers
+
+whereteach <- data.frame(whereteach[1], lapply(whereteach[2:22], make_numeric)) 
+
+# check the structure
+str(whereteach) # great, all ordered numbers with NAs
+
+# now rename the whereteach variables
+# need to go back to the formatted excel file with cross tabs from Pearson to get the variable names and item questions
+
+names(whereteach)
+whereteach_newvarnames <- function(x) {
+    names(x) <- c("RecordNo", "friends_whr", "family_whr", "partner_whr", "uni_whr", "quality_life_whr", "cost_living_whr", "commutable_whr", "family_career_opps_whr", "quality_ed_own_children_whr", "make_diff_society_whr", "make_diff_comm_whr", "make_diff_pupils_whr", "pupils_chars_whr", "quality_lm_whr", "pupil_att_whr", "culture_sch_whr", "pupil_beh_whr", "rep_schs_area_whr", "cpd_whr", "opp_career_prog_whr", "pay_whr")
+    return(x)
+}
+whereteach <- whereteach_newvarnames(whereteach)
+names(whereteach)
+```
+
+Third, prepare the __whymove__ dataframe.
+
+```{r prepare whymove dataframe, tidy=T}
+# check the levels for the whymove dataframe
+lapply(whymove, function(x) {levels(x)})
+
+# make a function to reorder the importance scale levels
+likert_enc <- function(x) {ordered(x, levels =  c("It wouldn’t encourage me at all", "It wouldn’t encourage me very much", "It would encourage me a little", "It would encourage me a lot"))}
+
+# apply that function to whymove
+names(whymove) # get the column vectors
+whymove <- data.frame(whymove[1], lapply(whymove[2:22], likert_enc)) 
+
+# check the levels for whymove again
+lapply(whymove, function(x) {levels(x)})
+
+# now make a function to convert the levels in whymove to numeric type
+make_numeric <- function(x) {as.numeric(x)}
+
+# apply the function to whymove
+whymove <- data.frame(whymove[1], lapply(whymove[2:22], make_numeric)) 
+
+# check the structure
+str(whymove) # great, all ordered numbers with NAs
+
+# now rename the whyteach variables
+names(whymove)
+whymove_newvarnames <- function(x) {
+    names(x) <- c("RecordNo", "friends_mov", "family_mov", "partner_mov", "uni_mov", "quality_life_mov", "cost_living_mov", "commutable_mov", "family_career_opps_mov", "quality_ed_own_children_mov", "make_diff_society_mov", "make_diff_comm_mov", "make_diff_pupils_mov", "pupils_chars_mov", "quality_lm_mov", "pupil_att_mov", "culture_sch_mov", "pupil_beh_mov", "rep_schs_area_mov", "cpd_mov", "opp_career_prog_mov", "pay_mov")
+    return(x)
+}
+whymove <- whymove_newvarnames(whymove)
+names(whymove)
+```
+
+## On to the latent class analysis ##
+
+Here I will repeat the latent class analysis on the four reduced dataframes separately. This will mean we will end up with a separate set of teacher types for each of:
+
+*whyjoin - why they initially joined the profession
+*whystay - why they stayed in the profession
+*whereteach - why they teach in the areas and schools that they do
+*whymove - why they would move areas
+
+Here's a quick summary on latent class analysis, taken from http://www.r-bloggers.com/latent-class-modeling-election-data/
+
+Latent class analysis is a useful tool that is used to identify groups within multivariate categorical data.  An example of this is the likert scale. In categorical language these groups are known as latent classes. As a simple comparison this can be compared to the k-means multivariate cluster analysis. There are several key differences between the two methods. First, latent class analysis assigns observations to groups based on probability while k-means cluster analysis absolutely assigns observations to groups. While k-means is readily available in many software packages it is only appropriate for continuous data. Latent class analysis is not as widely available in many software packages but it is designed to handle categorical data.
+
+A bit more information on model fit etc. here:
+http://www.john-uebersax.com/stat/faq.htm#nclass
+
+The R package I'll use to do this LCA is poLCA.
+https://cran.r-project.org/web/packages/poLCA/poLCA.pdf
+
+## LCA on why people join the profession ##
+
+```{r LCA on whyjoin, tidy=TRUE}
+library(poLCA)
+
+# store all the variables for the whyjoin teacher types model in one object
+f0 <- names(whyjoin)
+f0 <- as.list(f0)
+f0
+f1 <- cbind(subj_interest1, desire_work_cyp1, make_diff_pupils1, make_diff_society1, pay1, holidays1, good_at_it1, like_sch_culture1, well_qualified_to_do1, needed_job1, career_prog1, quality_lm1)  ~ 1
+
+# 1. First model, two classes
+m1 <- poLCA(f1, maxiter=50000, nclass=2, nrep=30, data = whyjoin)
+# view the plot
+plot(m1)
+
+# 2. Second model, three classes
+m2 <- poLCA(f1, maxiter=50000, nclass=3, nrep=30, data = whyjoin)
+# view the plot
+plot(m2)
+
+# Fit has improved slightly
+
+# 3. Third model, four classes
+m3 <- poLCA(f1, maxiter=50000, nclass=4, nrep=30, data = whyjoin)
+# view the plot
+plot(m3)
+
+# 4. Fourth model, five classes
+m4 <- poLCA(f1, maxiter=50000, nclass=5, nrep=30, data = whyjoin)
+# view the plot
+plot(m4)
+
+# store the fit statistics of these four models in an array
+fitstats <- array(NA, dim = c(5, 6))
+colnames(fitstats) <- c("AIC", "BIC", "G2", "Chi2", "MaxLL", "df")
+fitstats[1,] <- c(m1$aic, m1$bic, m1$Gsq, m1$Chisq, m1$llik, m1$resid.df)
+fitstats[2,] <- c(m2$aic, m2$bic, m2$Gsq, m2$Chisq, m2$llik, m2$resid.df)
+fitstats[3,] <- c(m3$aic, m3$bic, m3$Gsq, m3$Chisq, m3$llik, m3$resid.df)
+fitstats[4,] <- c(m4$aic, m4$bic, m4$Gsq, m4$Chisq, m4$llik, m4$resid.df)
+
+# look at the fit statistics
+fitstats
+
+# the numbers keep going down (except BIC, which has gone up once we have 5 classes) but I haven't reached saturation point yet, so let's run a few more models
+
+# 5. Fifth model, six classes
+m5 <- poLCA(f1, maxiter=50000, nclass=6, nrep=30, data = whyjoin)
+fitstats[5,] <- c(m5$aic, m5$bic, m5$Gsq, m5$Chisq, m5$llik, m5$resid.df)
+
+# check the fitstats again
+fitstats
+
+# tidy up
+rm(m1, m2, m4, m5)
+```
+
+The results from above show that after we get to 4 classes (model 3), the BIC statistic goes up. This means the best model I have is m3, the one with 4 classes.
+
+### Post-modelling analysis ###
+
+Now that I have a preferred model for whyjoin (m3), I need to use it to assign classes back to the observations in the datset.
+
+Let me check what elements the poLCA function returns - see if any of them can be used to predict classes/assign classes to observations.
+
+```{r assigning whyjoin classes back from poLCA, tidy = T}
+str(m3)
+
+# there is an element called predclass in there, which looks like it holds the assigned classes for each type
+m3$predclass
+
+# how many teachers in each of the whyjoin classes?
+table(m3$predclass)
+prop.table(table(m3$predclass))
+m3$Nobs # shows how many observations m4 was estimated on
+
+# add a column of whyjoin case types into the main whyjoin df - just keep complete cases first, then do the joining
+whyjoin_cc <- whyjoin[complete.cases(whyjoin),]
+whyjoin_cc$whyjoin_type <- m3$predclass
+
+# let's look at the m3 plot to see if I can figure out what to call the classes
+plot(m3)
+```
+
+### "whyjoin" teacher type clusters (n = 883) ###
+
+Teacher Cluster | Number | Percentage
+--------------- | ------ | ----------
+1               | 320    | 36.2%
+2               | 93     | 10.5%
+3               | 358    | 40.5%
+4               | 112    | 12.7%
+
+
+Scanning through the plot, this is what I think the classes are like/called:
+
+Class 1 - moderate teachers
+This class of teachers joined the profession because of all of the factors listed, reporting that these factors were mostly "fairly important". They are moderate teachers, who do not have extreme opinions, in either direction, on why they joined teaching.
+
+Class 2 - impersonal/unselfish teachers
+This class of teachers is the smallest and stands out by the factors that this group though were not at all important. Whilst most factors were considered of middling importance, the majority of teachers in this group reported that personal factors (pay, holidays, liking school culture, opportunities for career progression, and quality leadership and management) were all "not at all important" reasons for their joining the profession.
+
+Class 3 - socially committed, idealistic teachers
+This class of teachers is the largest. Teachers in this class joined the profession because of subject interest, wanting to work with children and YP, and wanting to make a difference to pupils and society. They are different to class 2 teachers in that they think the following factors were _less_ important as to why they joined the profession: being well qualified to do it; needing a job.
+
+Class 4 - socially committed, pragmatic teachers
+Like class 3 teachers, teachers in class 4 joined the profession because of subject interest, wanting to work with children and YP, and wanting to make a difference to pupils and society. Unlike class 3 teachers, they thought that pay and holidays were more important factors for joining the profession. They also reported that being good at teaching, being well qualified, and needing a job were all very important reasons for going into teaching (unlike class 3).
+
+## LCA on why people stay in the profession ##
+
+```{r LCA on whystay, tidy=TRUE}
+
+library(poLCA)
+# store all the variables for the whyjoin teacher types model in one object
+names(whystay)[13] <- "quality_lm2"
+f0 <- names(whystay)
+f0 <- as.list(f0)
+f0
+
+f1 <- cbind(subj_interest2, desire_work_cyp2, make_diff_pupils2, make_diff_society2, pay2, holidays2, good_at_it2, like_sch_culture2, well_qualified_to_do2, needed_job2, career_prog2, quality_lm2, nothing_switch_to)  ~ 1
+
+# 1. First model, two classes
+m1 <- poLCA(f1, maxiter=50000, nclass=2, nrep=30, data = whystay)
+# view the plot
+plot(m1)
+
+# 2. Second model, three classes
+m2 <- poLCA(f1, maxiter=50000, nclass=3, nrep=30, data = whystay)
+# view the plot
+plot(m2)
+
+# 3. Third model, four classes
+m3 <- poLCA(f1, maxiter=50000, nclass=4, nrep=30, data = whystay)
+# view the plot
+plot(m3)
+
+# 4. Fourth model, five classes
+m4 <- poLCA(f1, maxiter=50000, nclass=5, nrep=30, data = whystay)
+# view the plot
+plot(m4)
+
+# store the fit statistics of these four models in an array
+fitstats <- array(NA, dim = c(5, 6))
+colnames(fitstats) <- c("AIC", "BIC", "G2", "Chi2", "MaxLL", "df")
+fitstats[1,] <- c(m1$aic, m1$bic, m1$Gsq, m1$Chisq, m1$llik, m1$resid.df)
+fitstats[2,] <- c(m2$aic, m2$bic, m2$Gsq, m2$Chisq, m2$llik, m2$resid.df)
+fitstats[3,] <- c(m3$aic, m3$bic, m3$Gsq, m3$Chisq, m3$llik, m3$resid.df)
+fitstats[4,] <- c(m4$aic, m4$bic, m4$Gsq, m4$Chisq, m4$llik, m4$resid.df)
+
+# look at the fit statistics
+fitstats
+
+# 5. Fifth model, six classes
+m5 <- poLCA(f1, maxiter=50000, nclass=6, nrep=30, data = whystay)
+fitstats[5,] <- c(m5$aic, m5$bic, m5$Gsq, m5$Chisq, m5$llik, m5$resid.df)
+
+# check the fitstats again
+fitstats
+
+# tidy up
+rm(m1, m2, m3, m5)
+```
+
+The results from above show that after we get to 5 classes (model 4), the BIC statistic goes up. This means the best model I have is m4, the one with 5 classes.
+
+### Post-modelling analysis ###
+
+Now that I have a preferred model for whystay (m3), I need to use it to assign classes back to the observations in the datset.
+
+Let me check what elements the poLCA function returns - see if any of them can be used to predict classes/assign classes to observations.
+
+```{r assigning whystay classes back from poLCA, tidy = T}
+str(m4)
+
+# there is an element called predclass in there, which looks like it holds the assigned classes for each type
+m4$predclass
+
+# how many teachers in each of the whyjoin classes?
+table(m4$predclass)
+prop.table(table(m4$predclass))
+m4$Nobs # shows how many observations m4 was estimated on - 913
+
+# add a column of case types into the main df - just keep complete cases first, then do the joining
+whystay_cc <- whystay[complete.cases(whystay),]
+whystay_cc$whystay_type <- m4$predclass
+
+# let's look at the m4 plot to see if I can figure out what to call the classes
+plot(m4)
+```
+
+### "whystay" teacher type clusters (n = 913) ###
+
+__ I am not sure the "whystay" set of clusters really separate out types of teachers that much substantively. __
+
+Teacher Cluster | Number | Percentage
+--------------- | ------ | ----------
+1               | 235    | 25.7%
+2               | 124    | 13.6%
+3               | 62     | 7.00%
+4               | 146    | 16.0%
+5               | 346    | 37.9%
+
+Scanning through the plot, this is what I think the classes are like/called:
+
+Class 1 - most factors are fairly important (moderate teachers)
+Most factors are fairly important in terms of keeping this group in teaching. The factors are mostly reported on as being fairly important, with occasional reporting of not very/not at all important.
+
+Class 2 - impersonal factors
+For this class, nothing really stands out, excep the factors that are reported to be not at all important in terms of keeping them in teaching. These factors are liking school culture, opportunities for career progression, and quality of leadership and management. The other thing of interest is that most people in this group report needing a job as being very important.
+
+Class 3 - most factors not very important
+This group is something of a mystery, as most factors are being reported as fairly or not very important - it's not clear what _is_ important to this group.
+
+Class 4 - all factors keep them in teaching
+All factors are important to this group in terms of why they have stayed in teaching. The factors with the greatest proportions of "very important" ratings are: subject interest, desire to work with children and young people, make a difference to society, make a difference to pupils, good at it, well qualified, and needed a job. Class 4 also have most members reporting that pay and holidays are very important, alongside school culture and there being nothing to switch to.
+
+Class 5 - similar to class 4 but less materialistic
+Class 5 teachers are like class 4 teachers except pay and holidays are only fairly important factors, as is their liking of school culture. Class 5 also do not really report nothing to switch to as being a very important factor.
+
+## LCA on where people teach ##
+
+```{r LCA on whereteach, tidy=TRUE}
+
+library(poLCA)
+# store all the variables for the whyjoin teacher types model in one object
+f0 <- names(whereteach)
+f0
+
+f1 <- cbind(friends_whr,family_whr, partner_whr, uni_whr, quality_life_whr, cost_living_whr, commutable_whr, family_career_opps_whr, quality_ed_own_children_whr, make_diff_society_whr, make_diff_comm_whr, make_diff_pupils_whr, pupils_chars_whr, quality_lm_whr, pupil_att_whr, culture_sch_whr, pupil_beh_whr, rep_schs_area_whr, cpd_whr, opp_career_prog_whr, pay_whr) ~ 1
+
+# 1. First model, two classes
+m1 <- poLCA(f1, maxiter=50000, nclass=2, nrep=30, data = whereteach)
+# view the plot
+plot(m1)
+
+# 2. Second model, three classes
+m2 <- poLCA(f1, maxiter=50000, nclass=3, nrep=30, data = whereteach)
+# view the plot
+plot(m2)
+
+# 3. Third model, four classes
+m3 <- poLCA(f1, maxiter=50000, nclass=4, nrep=30, data = whereteach)
+# view the plot
+plot(m3)
+
+# 4. Fourth model, five classes
+m4 <- poLCA(f1, maxiter=50000, nclass=5, nrep=30, data = whereteach)
+# view the plot
+plot(m4)
+
+# store the fit statistics of these four models in an array
+fitstats <- array(NA, dim = c(6, 6))
+colnames(fitstats) <- c("AIC", "BIC", "G2", "Chi2", "MaxLL", "df")
+fitstats[1,] <- c(m1$aic, m1$bic, m1$Gsq, m1$Chisq, m1$llik, m1$resid.df)
+fitstats[2,] <- c(m2$aic, m2$bic, m2$Gsq, m2$Chisq, m2$llik, m2$resid.df)
+fitstats[3,] <- c(m3$aic, m3$bic, m3$Gsq, m3$Chisq, m3$llik, m3$resid.df)
+fitstats[4,] <- c(m4$aic, m4$bic, m4$Gsq, m4$Chisq, m4$llik, m4$resid.df)
+
+# look at the fit statistics
+fitstats
+
+# 5. Fifth model, six classes
+m5 <- poLCA(f1, maxiter=50000, nclass=6, nrep=30, data = whereteach)
+fitstats[5,] <- c(m5$aic, m5$bic, m5$Gsq, m5$Chisq, m5$llik, m5$resid.df)
+
+# check the fitstats again
+fitstats
+
+# 6. Sixth model, seven classes
+m6 <- poLCA(f1, maxiter=50000, nclass=7, nrep=30, data = whereteach)
+fitstats[6,] <- c(m6$aic, m6$bic, m6$Gsq, m6$Chisq, m6$llik, m6$resid.df)
+
+# check the fitstats again
+fitstats
+
+# tidy up
+rm(m1, m2, m3, m4, m6)
+```
+
+The results from above show that after we get to 6 classes (model 5), the BIC statistic goes up. This means the best model I have is m5, the one with 6 classes.
+
+### Post-modelling analysis ###
+
+Now that I have a preferred model for whereteach (m5), I need to use it to assign classes back to the observations in the datset.
+
+Let me check what elements the poLCA function returns - see if any of them can be used to predict classes/assign classes to observations.
+
+```{r assigning whereteach classes back from poLCA, tidy = T}
+# how many teachers in each of the whymove classes?
+table(m5$predclass)
+prop.table(table(m5$predclass))
+m5$Nobs # shows how many observations m5 was estimated on - 887
+
+# add a column of case types into the main whereteach df - just keep complete cases first, then do the joining
+whereteach_cc <- whereteach[complete.cases(whereteach),]
+whereteach_cc$whereteach_type <- m5$predclass
+
+# let's look at the m5 plot to see if I can figure out what to call the classes
+
+# plot won't load so will have to save it first
+jpeg("whereteach_m5.jpg")
+plot(m5)
+dev.off()
+
+# list the variables again
+f0[2:22]
+```
+
+### "whereteach" teacher type clusters (n = 887) ###
+
+__ The plot for this one isn't so easy to interpret because there are 21 variables in it. __
+
+Teacher Cluster | Number | Percentage
+--------------- | ------ | ----------
+1               | 132    | 14.9%
+2               | 154    | 17.3%
+3               | 174    | 19.6%
+4               | 171    | 19.3%
+5               | 124    | 14.0%
+6               | 132    | 14.9%
+
+Scanning through the plot, this is what I think the classes are like/called:
+
+Class 1 - no strong influences
+This group were influenced a bit by commutability, quality of education for own children, and making a difference to society, making a difference to pupils.
+
+Class 2 - commuting matters, as does family/partner (for some memebrs)
+Most factors didn't influence the teachers in this class at all, except for commutability, by which they were "influenced a lot". They are polarised on issues of family and partner, with around half the group saying it didn't influence them at all, and the other half saying it influenced them a lot.
+
+Class 3 - not influenced by personal factors
+This group were fairly evenly split for the seocond half of factors (school related factors) in terms of the degree to which it influenced them. They report being not at all influenced by any personal factors or quality of life or cost of living.
+
+Class 4 - want to make a difference
+This group were polarised in terms of the influence of partner proximity, but were influenced a lot by being near to family. Uni proximity is not at all influnencing. They were influenced a lot by commutability, making a difference to society, the comunity and to pupils.
+
+Class 5 - pragmatic and influenced by school specific factors
+Influenced a lot by partner and family proximity (not at all by uni). Quality of life, cost of living and commutability all are strong influences. Influenced a lot by making a difference to pupils, quality of L&M, and all school-related factors.
+
+Class 6 - all factors fairly influential except personal ones
+This group isn't influenced by being close to friends/partners/family/uni. All other factors are fairly influential. School culture is very influential.
+
+```{r LCA on whymove, tidy=TRUE}
+
+library(poLCA)
+# store all the variables for the whymove teacher types model in one object
+f0 <- names(whymove)
+f0
+
+f1 <- cbind(friends_mov, family_mov, partner_mov, uni_mov, quality_life_mov, cost_living_mov, commutable_mov, family_career_opps_mov, quality_ed_own_children_mov, make_diff_society_mov, make_diff_comm_mov, make_diff_pupils_mov, pupils_chars_mov, quality_lm_mov, pupil_att_mov, culture_sch_mov, pupil_beh_mov, rep_schs_area_mov, cpd_mov, opp_career_prog_mov, pay_mov) ~ 1
+
+# 1. First model, two classes
+m1 <- poLCA(f1, maxiter=50000, nclass=2, nrep=30, data = whymove)
+
+# 2. Second model, three classes
+m2 <- poLCA(f1, maxiter=50000, nclass=3, nrep=30, data = whymove)
+
+# 3. Third model, four classes
+m3 <- poLCA(f1, maxiter=50000, nclass=4, nrep=30, data = whymove)
+
+# 4. Fourth model, five classes
+m4 <- poLCA(f1, maxiter=50000, nclass=5, nrep=30, data = whymove)
+
+# store the fit statistics of these four models in an array
+fitstats <- array(NA, dim = c(6, 6))
+colnames(fitstats) <- c("AIC", "BIC", "G2", "Chi2", "MaxLL", "df")
+fitstats[1,] <- c(m1$aic, m1$bic, m1$Gsq, m1$Chisq, m1$llik, m1$resid.df)
+fitstats[2,] <- c(m2$aic, m2$bic, m2$Gsq, m2$Chisq, m2$llik, m2$resid.df)
+fitstats[3,] <- c(m3$aic, m3$bic, m3$Gsq, m3$Chisq, m3$llik, m3$resid.df)
+fitstats[4,] <- c(m4$aic, m4$bic, m4$Gsq, m4$Chisq, m4$llik, m4$resid.df)
+
+# 5. Fifth model, six classes
+m5 <- poLCA(f1, maxiter=50000, nclass=6, nrep=30, data = whymove)
+fitstats[5,] <- c(m5$aic, m5$bic, m5$Gsq, m5$Chisq, m5$llik, m5$resid.df)
+
+# 6. Sixth model, seven classes
+m6 <- poLCA(f1, maxiter=50000, nclass=7, nrep=30, data = whymove)
+fitstats[6,] <- c(m6$aic, m6$bic, m6$Gsq, m6$Chisq, m6$llik, m6$resid.df)
+
+# check the fitstats again
+fitstats
+
+# tidy up
+rm(m1, m2, m3, m4, m6)
+```
+
+The results from above show that after we get to 6 classes (model 5), the BIC statistic goes down only slightly more. This means the best model I have is m5, the one with 6 classes.
+
+### Post-modelling analysis ###
+
+Now that I have a preferred model for whymove (m5), I need to use it to assign classes back to the observations in the datset.
+
+```{r assigning whymove classes back from poLCA, tidy = T}
+
+# how many teachers in each of the whymove classes?
+table(m5$predclass)
+prop.table(table(m5$predclass))
+m5$Nobs # shows how many observations m5 was estimated on - 814
+
+# add a column of case types into the main whereteach df - just keep complete cases first, then do the joining
+whymove_cc <- whymove[complete.cases(whymove),]
+whymove_cc$whymove_type <- m5$predclass
+
+# let's look at the m5 plot to see if I can figure out what to call the classes (adjust screen margins first)
+plot(m5)
+# list the variables again
+f0[2:22]
+```
+
+### "whymove" teacher type clusters (n = 814) ###
+
+__ The plot for this one isn't so easy to interpret because there are 21 variables in it. __
+
+Teacher Cluster | Number | Percentage
+--------------- | ------ | ----------
+1               | 130    | 16.0%
+2               | 110    | 13.5%
+3               | 87     | 10.7%
+4               | 260    | 31.9%
+5               | 60     | 7.37%
+6               | 167    | 20.5%
+
+Scanning through the plot, this is what I think the classes are like/called:
+
+Class 1: want to make a difference
+This group would not be encouraged at all to move to be near uni. They would be encouraged a lot to move by commutability and being able to make a difference to society, the community and to pupils.
+
+Class 2: school-specific factors and the good life
+Again, this cluster would not be motivated to move to be near university. They are not particularly encouraged to move because of making a difference to society, the community or pupils. They are not encouraged to move for pupils characteristics in a particular area or family career opportunities. They are encouraged a bit or a lot by factors like the quality of life, cost of living, and commutability. They are encouraged a bit or a lot by school specific factors: quality of leadership and management, pupil attaiment, school culture, pupil behaviour, and the reputation of schools in the areas. 
+
+Class 3: Won't move
+This cluster is identifiable by the overwhelming response of "it wouldn't encourage me at all" to every factor listed. This group are happy where they are and won't move.
+
+Class 4: open to a move (to the right school)
+This cluster is idenfitiable by their positive responses to factor that would encourage them to move. Almost all factors are responded to by "it would encourage me a bit" or "it would encourage me a lot". Partner, quality of life, cost of living and commutability all feature as factors with most people choosing encouraging a lot. They are also encouraged a lot by school specific factors - all the school options given, but particularly quality of leadership and management, and the culture of the school.
+
+Class 5: reluctant to move
+This cluster is reluctant to move, with most responses to factors being "it wouldn't encourage me much" or "it wouldn't encourage me at all". There are slightly more positive responses to do with personal factors, like being near friends and family, and also cost of living, quality of life and quality of education for one's own children. School specific factors do not seem to encourage them particularly.
+
+Class 6: fairly open to a move (to the right school and if they can make a difference)
+This cluster appears to be fairly open to a move, with most factors encouraging them "a bit". Closeness to partner is the one factors where the majority say it would encourage them a lot. This class is similar to class 4 (those who would move to the right school), but different in that it they would be encouraged by both school-specific facotrs but also opportunities to make a difference to society, community and pupils.
+
+Tidy up the workspace.
+
+```{r tidy up}
+rm(m1, m2, m3, m4, m5, m6, f0, f1)
+```
+
+## CLosing up: make a new csv file with the teacher types in them ##
+
+Here I will write out a new csv file with the 4 new sets of teacher types in them.
+
+```{r combine the dataframes and write the csv back out, tidy=T}
+
+# I want to join the four teachertype dfs back to the main df with all other vars in it
+# I'll use dplyr to do this
+
+# first join the whyjoin_cc df
+library (dplyr)
+join1 <- left_join(df, whyjoin_cc, by = "RecordNo")
+
+# get rid of derived whyjoin columns as they are already there in the source dataset
+names(join1)
+join1 <- subset(join1, select = -c(236:247) )
+
+# second join the whystay_cc df
+join2 <- left_join(join1, whystay_cc, by = "RecordNo")
+# again, get rid of duplicate columns
+names(join2)
+join2 <- subset(join2, select = -c(237:249) )
+
+# third join the whereteach_cc df
+join3 <- left_join(join2, whereteach_cc, by = "RecordNo")
+# again, get rid of duplicate columns
+names(join3)
+join3 <- subset(join3, select = -c(238:258) )
+
+# fourth join the whymove_cc df
+join4 <- left_join(join3, whymove_cc, by = "RecordNo")
+# again, get rid of duplicate columns
+names(join4)
+join4 <- subset(join4, select = -c(239:259) )
+
+# the four types are in the main df now so just need to write out the csv and then clean up the workspace
+
+write.csv(x = join4, file = "pearson_with_types_LCA.csv", row.names = T, col.names = T)
+
+# save the workspace image
+# save.image("~/Dropbox/LKMco Work/Pearson/Pearson data and analysis/LCA_workspace.RData")
+```
+
+## An LCA of the LCA teacher types ##
+
+This is all going to be a bit meta, but why not run a latent class analysis of the four sets of latent classes (teachert types) that I've derived already? That way, I'll be able to identify an overall teacher type.
+
+``` {r overall LCA on the class types, tidy=TRUE}
+library(poLCA)
+
+# load the workspace with the relevant objects in it
+load("~/Dropbox/LKMco Work/Pearson/Pearson data and analysis/LCA_workspace.RData")
+
+# store all the teacher types in one variable
+names(join4)
+f1 <- cbind(whyjoin_type, whystay_type, whereteach_type, whymove_type) ~ 1
+
+# 1. First model, two classes
+m1 <- poLCA(f1, maxiter=50000, nclass=2, nrep=30, data = join4)
+# view the plot
+plot(m1)
+
+# 2. Second model, three classes
+m2 <- poLCA(f1, maxiter=50000, nclass=3, nrep=30, data = join4)
+# view the plot
+plot(m2)
+
+# Fit has improved slightly
+
+# 3. Third model, four classes
+m3 <- poLCA(f1, maxiter=50000, nclass=4, nrep=30, data = join4)
+# view the plot
+plot(m3)
+
+# 4. Fourth model, five classes
+m4 <- poLCA(f1, maxiter=50000, nclass=5, nrep=30, data = join4)
+# view the plot
+plot(m4)
+
+# store the fit statistics of these four models in an array
+fitstats <- array(NA, dim = c(5, 6))
+colnames(fitstats) <- c("AIC", "BIC", "G2", "Chi2", "MaxLL", "df")
+fitstats[1,] <- c(m1$aic, m1$bic, m1$Gsq, m1$Chisq, m1$llik, m1$resid.df)
+fitstats[2,] <- c(m2$aic, m2$bic, m2$Gsq, m2$Chisq, m2$llik, m2$resid.df)
+fitstats[3,] <- c(m3$aic, m3$bic, m3$Gsq, m3$Chisq, m3$llik, m3$resid.df)
+fitstats[4,] <- c(m4$aic, m4$bic, m4$Gsq, m4$Chisq, m4$llik, m4$resid.df)
+
+# look at the fit statistics
+fitstats
+
+# the numbers keep going down (except BIC, which has gone up once we have 5 classes) but I haven't reached saturation point yet, so let's run a few more models
+
+# 5. Fifth model, six classes
+m5 <- poLCA(f1, maxiter=50000, nclass=6, nrep=30, data = join4)
+fitstats[5,] <- c(m5$aic, m5$bic, m5$Gsq, m5$Chisq, m5$llik, m5$resid.df)
+
+# check the fitstats again
+fitstats
+
+# model 3 is best, how many observations was this estimated on?
+m3$Nobs # 702 obs
+```
+
+Based on the above, the four class solution is best. So what are these four overall teacher types?
+
+Overall Teacher Cluster | Number | Percentage
+------------------------| ------ | ----------
+1                       | 141    | 20.1%
+2                       | 170    | 24.1%
+3                       | 243    | 34.6%
+4                       | 150    | 21.3%
+
+ 
+#### Overall class 1: moderate teachers who are motivated by impersonal (external) factors and school-specific reasons
+This type makes up 20% of teachers. They are predominantly from whyjoin type 1 and 2 (moderate teachers with most factors being fairly important; and impersonal/unselfish teachers); whystay type 2 (impersonal factors); whereteach type 2 and 3 (communters and impersonal factors); and whymove types 2 and 3 (school specific-factors and the good life; won't movers) Although whymove isn't clearly split out as there are some of this class in all groups.
+
+#### Overall class 2: moderate teacers who are flexible and open to options
+This type makes up almost 25% of teachers. They are concentrated in whyjoin type 1 (moderate teachers - most factors are fairly important); whystay type 1 (moderate teachers - most factors are fairly important); whereteach types 1 and 5 (no strong influences; pragmatic and school-specific factors); and whymove type 6 (fairly open to a move - most factors encourage them a bit + making difference + school-specific factors).
+
+#### Overall class 3: socially committed idealists
+This type makes up over a third of teachers. They are concentrated in whyjoin type 3 (socially committed idealists); whystay type 5 (all factors keep them in teaching but less concerned by pay and holidays); whereteach type 4 (want to make a difference); and across all whymove types.
+
+#### Overall class 4: socially committed pragmatists/school-centred socially committed teachers
+This type makes up just over 20% of the sample of teachers. They are concentrated in whyjoin types 3 and 4 (socially committed idealists; socially comitted pragmatists); whystay type 4 (all factors are important, but especially making a difference, subject interest and being well qualified); whereteach type 5 (pragmatic (cost of living, quality of life, commuting) and school-specific factors (making a difference to pupils, quality leadership and management, all school-related factors)); and whymove type 4 (open to a move - to the right school as they are looking for a school with quality leadership and management and a school culture they like).

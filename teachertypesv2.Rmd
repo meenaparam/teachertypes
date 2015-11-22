@@ -1,0 +1,785 @@
+---
+title: "Teacher type version 2"
+author: "Meenakshi Parameshwaran"
+date: "24 July 2015"
+output: html_document
+---
+
+## Introduction ##
+
+This is the 2nd set of analyses on the "Why Teach" dataset. The purpose of this analysis is to identify any "teacher types" in the "Why Teach" dataset.
+
+If you want to re-run this analysis, choose your own working directory (where your data file is saved) and enter that into the setwd function below.
+
+If you need to install any of the required packages, type something like:
+install.packages("packagename") - put the name of the package you require in the place of packagename. The quotes are needed when you install a package, but not when you load it up. You load a package using:
+library(packagename)
+
+```{r setting working directory}
+# set the working directory 
+setwd("~/Dropbox/LKMco Work/Pearson/Pearson data and analysis")
+
+# list the files in this directory
+list.files()
+```
+
+Now install and load required packages and the dataset. Note that the SPSS version of the dataset is partially labelled.
+
+```{r loading in the data, warning=FALSE, tidy = T, message = F}
+# read in the SPSS version of the dataset to an object called df
+library(foreign)
+df <- read.spss(file = "Pearson_Why Teach_RawData 25.06.15.sav",to.data.frame = T)
+
+# alternatively read in the csv version of the dataset to an object called df
+# df <- read.csv(file = "pearson_raw.csv", header = T)
+
+# look at the variable names
+names(df)
+
+# keep just the variables I'm interested in - motivations and the record number
+motiv1 <- df[, c(1,135:201)]
+
+# recode the don't knows
+library(car)
+motiv1 <- as.data.frame(lapply(motiv1, function(x) {
+    x <- recode(x,'"Don\'t know" = NA ')
+    return(x)
+    }))
+
+# recode the don't knows with a different type of apostrophe in them
+motiv1 <- as.data.frame(lapply(motiv1, function(x) {
+    x <- recode(x,'"Don’t know" = NA ')
+    return(x)
+    }))
+
+# check the structure of the new data frame
+str(motiv1) # good, all the DKs are gone
+```
+
+## Lots of data preparation ##
+
+Because the dataset has five sets of variables in, which have three different sets of responses, I have to split them out into three dataframes. One dataframe for whyteach, one dataframe for whereteach, and one dataframe for whymove. This will make it easier to recode the variables, order them correctly, run the analyses, and create the predicted classes for each row. Afterwards, I'll have to compile the datasets back together again + add in some interesting demographic variables.
+
+``` {r split out three dataframes, tidy = T}
+names(motiv1)
+
+# make three dataframes according to the column numbers
+whyteach <- motiv1[, c(1:26)]
+whereteach <- motiv1[, c(1, 27:47)]
+whymove <- motiv1[, c(1, 48:68)]
+```
+
+Now recode and set up each dataframe.
+
+First the __whyteach__ dataframe.
+
+```{r prepare whyteach dataframe, tidy=T}
+# check the levels for the whyteach dataframe
+lapply(whyteach, function(x) {levels(x)})
+
+# make a function to reorder the importance scale levels
+likert_imp <- function(x) {ordered(x, levels =  c("Not at all important", "Not very important", "Fairly important", "Very important"))}
+
+# apply that function to whyteach
+whyteach <- data.frame(whyteach[1], lapply(whyteach[2:26], likert_imp)) 
+
+# check the levels for whyteach again
+lapply(whyteach, function(x) {levels(x)})
+
+# now make a function to convert the levels in whyteach to numeric type
+make_numeric <- function(x) {as.numeric(x)}
+
+# apply the function to whyteach
+whyteach <- data.frame(whyteach[1], lapply(whyteach[2:26], make_numeric)) 
+
+# check the structure
+str(whyteach) # great, all ordered numbers with NAs
+
+# now rename the whyteach variables
+names(whyteach)
+whyteach_newvarnames <- function(x) {
+    names(x) <- c("RecordNo", "subj_interest1", "desire_work_cyp1", "make_diff_pupils1", "make_diff_society1", "pay1", "holidays1", "good_at_it1", "like_sch_culture1", "well_qualified_to_do1", "needed_job1", "career_prog1", "quality_lm1", "subj_interest2", "desire_work_cyp2", "make_diff_pupils2", "make_diff_society2", "pay2", "holidays2", "good_at_it2", "like_sch_culture2", "well_qualified_to_do2", "needed_job2", "career_prog2", "quality_lm", "nothing_switch_to")
+    return(x)
+}
+whyteach <- whyteach_newvarnames(whyteach)
+names(whyteach)
+```
+
+Second, prepare the __whereteach__ dataframe.
+
+```{r prepare whereteach dataframe, tidy=T}
+
+# check the levels for the whereteach dataframe
+lapply(whereteach, function(x) {levels(x)}) # levels are already in order
+
+# apply the make_numeric function to whereteach to make the levels numbers
+names(whereteach) # do this to get the column numbers
+
+whereteach <- data.frame(whereteach[1], lapply(whereteach[2:22], make_numeric)) 
+
+# check the structure
+str(whereteach) # great, all ordered numbers with NAs
+
+# now rename the whereteach variables
+# need to go back to the formatted excel file with cross tabs from Pearson to get the variable names and item questions
+
+names(whereteach)
+whereteach_newvarnames <- function(x) {
+    names(x) <- c("RecordNo", "friends_whr", "family_whr", "partner_whr", "uni_whr", "quality_life_whr", "cost_living_whr", "commutable_whr", "family_career_opps_whr", "quality_ed_own_children_whr", "make_diff_society_whr", "make_diff_comm_whr", "make_diff_pupils_whr", "pupils_chars_whr", "quality_lm_whr", "pupil_att_whr", "culture_sch_whr", "pupil_beh_whr", "rep_schs_area_whr", "cpd_whr", "opp_career_prog_whr", "pay_whr")
+    return(x)
+}
+whereteach <- whereteach_newvarnames(whereteach)
+names(whereteach)
+```
+
+Third, prepare the __whymove__ dataframe.
+
+```{r prepare whymove dataframe, tidy=T}
+# check the levels for the whymove dataframe
+lapply(whymove, function(x) {levels(x)})
+
+# make a function to reorder the importance scale levels
+likert_enc <- function(x) {ordered(x, levels =  c("It wouldn’t encourage me at all", "It wouldn’t encourage me very much", "It would encourage me a little", "It would encourage me a lot"))}
+
+# apply that function to whymove
+names(whymove) # get the column vectors
+whymove <- data.frame(whymove[1], lapply(whymove[2:22], likert_enc)) 
+
+# check the levels for whymove again
+lapply(whymove, function(x) {levels(x)})
+
+# now make a function to convert the levels in whymove to numeric type
+make_numeric <- function(x) {as.numeric(x)}
+
+# apply the function to whymove
+whymove <- data.frame(whymove[1], lapply(whymove[2:22], make_numeric)) 
+
+# check the structure
+str(whymove) # great, all ordered numbers with NAs
+
+# now rename the whyteach variables
+names(whymove)
+whymove_newvarnames <- function(x) {
+    names(x) <- c("RecordNo", "friends_mov", "family_mov", "partner_mov", "uni_mov", "quality_life_mov", "cost_living_mov", "commutable_mov", "family_career_opps_mov", "quality_ed_own_children_mov", "make_diff_society_mov", "make_diff_comm_mov", "make_diff_pupils_mov", "pupils_chars_mov", "quality_lm_mov", "pupil_att_mov", "culture_sch_mov", "pupil_beh_mov", "rep_schs_area_mov", "cpd_mov", "opp_career_prog_mov", "pay_mov")
+    return(x)
+}
+whymove <- whymove_newvarnames(whymove)
+names(whymove)
+
+```
+
+## Principal component analysis ##
+
+Here's a quick primer on PCA: https://tgmstat.wordpress.com/2013/11/21/introduction-to-principal-component-analysis-pca/
+
+In this situation, the data is not numerical but instead ordinal. This means that I can't just use regular PCA, I have to use a categorical approach. One way to do this is to use the `polycor()` package to extract a heterogeneous correlation matrix (`hetcor()` in `polycor ()` allows us to find correlations between ordinal variables, which is what our survey response items are), and then feed this into the `princomp()` package to get the principal compenents. 
+
+Let's start off with getting out the hetcors.
+
+```{r computing heterogeneous correlation matrix}
+# install.packages("polycor") # install the package if needed
+library(polycor)
+
+# use the hetcor function on the whyteach variables in question
+names(whyteach)
+whyteach_hetcor <- hetcor(data = whyteach[, 2:26], ML = T, std.err = T, use = "pairwise.complete.obs")
+
+# use the hetcor function on the whereteach variables in question
+names(whereteach)
+whereteach_hetcor <- hetcor(data = whereteach[, 2:22], ML = T, std.err = T, use = "pairwise.complete.obs")
+
+# use the hetcor function on the whymove variables in question
+names(whymove)
+whymove_hetcor <- hetcor(data = whymove[, 2:22], ML = T, std.err = T, use = "pairwise.complete.obs")
+
+```
+
+Now feed in the three sets of hetcors into the principal component analysis. Note that `princomp()` is in the stats package so should be loaded already.
+Note also that this is an updated version of the analysis with more PCs.
+
+```{r principal component analysis - whyteach}
+library(stats) # load the stats package back up
+
+# scale the data
+
+# first try it with the whyteach hetcors
+whyteach_pca <- princomp(x = whyteach_hetcor, cor = T , scores = T)
+
+# check the summary method
+summary(whyteach_pca) # the first seven components explain 85% of the variance
+
+# check the screeplot to see how many components to retain
+screeplot(x = whyteach_pca, npcs = 25, type = "lines")
+# keep seven components as after that, the plot levels off
+
+# look at the factor loadings for the 7 PCs (correlations/regression coefficients between variables and PCs) - these will tell me which vars are correlated with which PCs
+loadings(whyteach_pca)
+
+# now predict the PCs back into a dataframe
+pred_whyteach <- predict(object = whyteach_pca, newdata = whyteach[, 2:26])
+
+# now bind the first 7 PCs with the recordno to make a new df
+whyteach_reduced <- cbind(whyteach$RecordNo, as.data.frame(pred_whyteach[, 1:7]))
+
+# rename the variables - add a suffix so I know which PCs are from whyteach
+library(dplyr)
+whyteach_reduced <- whyteach_reduced %>% 
+    setNames(c(names(.)[1], paste0(names(.)[-1],"_whyteach")))
+# also rename the recordno variable
+colnames(whyteach_reduced)[1] <- "RecordNo"
+```
+
+## A quick summary of the 7 principal components in the whyteach df ##
+
+The `loadings(whyteach_pca)` command is really useful as it shows the factor loadings for the 7 PCs.
+
+There are 25 variables used in the whereteach df. The response categories were: "Not at all important", "Not very important", "Fairly important", "Very important".
+
+* PC1: highest positive loadings on: pay, holidays, needed a job for both stages. + nothing else to switch to. _benefits_
+* PC2: highest positive loadings on: subject interest, good at it, well qualified for both stages. _interested and qualified_
+* PC3: highest positive loadings on: subject interest, well qualified to do, career prog, quality LM for both stages. _aspirational specialists with quality LM_
+* PC4: highest positive loadings on: subject interest, make a difference to pupils, make diff society, pay and holidays, quality LM. Nothing is making them stay. _deflated teachers_
+* PC5: highest positive loadings on: Subject interest. Stay because of interest, make diff society, like school culture, quality LM, nothing to switch to. _subject specialists converted to education_
+* PC6: highest positive loadings on: make diff society, well qualified to do, needed a job, quality LM. Stay because of quality LM and nothing to switch to. _wanted to make a difference, stay beccause school is well led_
+* PC7: highest positive loadings on: subject interest, like school culture. Stay for the same reason. _like subject and schools_
+
+
+```{r principal component analysis - whereteach}
+## now repeat this for the wheremove variables
+
+# run the PCA with the whereteach hetcor
+whereteach_pca <- princomp(x = whereteach_hetcor, cor = T , scores = T)
+
+# check the summary method
+summary(whereteach_pca) # the first 8 components explain 85% of the variance
+
+# check the screeplot to see how many components to retain
+screeplot(x = whereteach_pca, npcs = 25, type = "lines")
+# keep 8 components as after that, the plot levels off
+
+# look at the factor loadings for the 8 PCs (correlations/regression coefficients between variables and PCs) - these will tell me which vars are correlated with which PCs
+names(whereteach)[2:22]
+loadings(whereteach_pca)
+
+# now predict the PCs back into a dataframe
+pred_whereteach <- predict(object = whereteach_pca, newdata = whereteach[, 2:22])
+
+# now bind the first 8 PCs with the recordno to make a new df
+whereteach_reduced <- cbind(whereteach$RecordNo, as.data.frame(pred_whereteach[, 1:8]))
+
+# rename the variables - add a suffix so I know which PCs are from whereteach
+whereteach_reduced <- whereteach_reduced %>% 
+    setNames(c(names(.)[1], paste0(names(.)[-1],"_whereteach")))
+# also rename the recordno variable
+colnames(whereteach_reduced)[1] <- "RecordNo"
+```
+
+## A quick summary of the 8 principal components in the whereteach df ##
+
+The `loadings(whereteach_pca)` command is really useful as it shows the factor loadings for the 8 PCs.
+
+There are 21 variables used in the whereteach df. The response categories were: "Not at all important", "Not very important", "Fairly important", "Very important".
+
+*PC1: highest positive loadings on: all school specific reasons (pupils characteristics at a particular school through to pay) _school specific_
+*PC2: highest positive loadings on: all make a difference reasons + pupil chars at a particular school _make a difference + pupil chars_
+*PC3: highest positive loadings on: partner, commutable, quality ed own children + pupil chars, school culture, rep of schools in the area. _personal and family factors + pupils/culture/rep_
+*PC4: highest positive loadings on: friends, commutable, pupil attainment, pupil behaviour _friends, convenient, behaviour/attainment_
+*PC5: highest positive loadings on: friends, quality of life, cost of living, quality of ed for own children  _friends, life quality and cost, some pupil/area factors_
+*PC6: highest positive loadings on: uni, family career ops, pupil chars, pupil attainment, pupil behaviour, rep schools in area. _uni, partner job, behaviour/attainment/culture/rep_
+*PC7: highest positive loadings on: cost of living, commutable, pay _economics_
+*PC8: highest positive loadings on: uni, commutable, quality ed for own children _own children and convenience_
+
+
+```{r principal component analysis - whymove}
+## now repeat this for the whymove variables
+
+# run the PCA with the whymove hetcor
+whymove_pca <- princomp(x = whymove_hetcor, cor = T , scores = T)
+
+# check the summary method
+summary(whymove_pca) # there are 21 PCs but the first 7 components explain 88% of the variance
+
+# check the screeplot to see how many components to retain
+screeplot(x = whymove_pca, npcs = 25, type = "lines")
+# keep 7 components as after that, the plot levels off
+
+# look at the factor loadings for the 6 PCs (correlations/regression coefficients between variables and PCs) - these will tell me which vars are correlated with which PCs
+names(whymove)[2:22]
+loadings(whymove_pca)
+
+# now predict the PCs back into a dataframe
+pred_whymove <- predict(object = whymove_pca, newdata = whymove[, 2:22])
+
+# now bind the first 7 PCs with the recordno to make a new df
+whymove_reduced <- cbind(whymove$RecordNo, 
+                         as.data.frame(pred_whymove[, 1:7]))
+
+# rename the variables - add a suffix so I know which PCs are from whymoveteach
+whymove_reduced <- whymove_reduced %>% 
+    setNames(c(names(.)[1], paste0(names(.)[-1],"_whymove")))
+# also rename the recordno variable
+colnames(whymove_reduced)[1] <- "RecordNo"
+```
+
+## A quick summary of the 7 principal components in the whymove df ##
+
+The `loadings(whymove_pca)` command is really useful as it shows the factor loadings for the 7 PCs.
+
+There are 21 variables used in the whymove df. The response categories were: "It wouldn’t encourage me at all", "It wouldn’t encourage me very much", "It would encourage me a little", "It would encourage me a lot". These were scaled from 1-4.
+
+* PC1: highest positive loadings on: pupil chars at a particular school, quality LM, attainment, school culture, pupil behaviour, rep of schools in the area, cpd _school specific reasons to move_
+* PC2: highest positive loadings on: pay, partner, quality of life, commutable, family career opps, quality ed of own children _family life and convenience and pay_
+* PC3: highest positive loadings on: family, partner, quality of life, cost of living, commutable, make diff society/pupils/community, pupil chars. _family life and convenience plus make a difference_
+* PC4: highest positive loadings on: family career opps, quality ed of own children, making a difference, cpd, opps for career progression _better career opps so long as fits with family_
+* PC5: highest positive loadings on: friends, quality of life, cost of living, cpd, career progression pay _social reasons, economics + career improvement_
+* PC6: highest positive loadings on: uni, quality of life, cost of living _uni plus life quality and cost_
+* PC7: highest positive loadings on: friends, family, quality of ed for own children, lesser extent school specific factors _family, friends, own children's ed + some school specific factors_
+
+## Now use k-means clustering to identify clusters ##
+
+```{r kmeans clustering on the three subsets, tidy=TRUE}
+# merge the three reduced dataframes into one df called tts
+tts <- as.data.frame(cbind(whyteach_reduced, whereteach_reduced[,2:9], whymove_reduced[,2:8]))
+
+# remove rows with NAs as k-means cannot deal with them
+tts_nona <- (na.omit(tts)) # now we're down from 1010 obs to 702 obs
+
+# Determine number of clusters using within groups sum of squares
+wss <- (nrow(tts_nona) - 1)*sum(apply(tts_nona[, 2:23], 2, function (x) var(x, na.rm = T)))
+
+for (i in 2:23) wss[i] <- sum(kmeans(tts_nona[, 2:23], nstart = 25, iter.max = 1000,
+  	centers = i)$withinss)
+
+# plot of the number of clusters
+plot(1:23, wss, type="b", xlab="Number of Clusters",
+  ylab="Within groups sum of squares")
+
+# the plot doesn't really have an elbow, but it becomes shallower after 5 clusters
+
+# apply kmeans with k = 5.
+fit <- kmeans(x = tts_nona[, 2:23], centers = 5, iter.max = 1000, nstart = 25)
+
+# get cluster means 
+k <- aggregate(tts_nona[, 2:23], by = list(fit$cluster), FUN = mean)
+
+# reshape the data so it can be plotted
+library(tidyr)
+l <- gather(data = k, key = component, value = mean_score, 2:23)
+
+# plot the data to see if we can identify clusters
+
+library(ggplot2)
+c <- ggplot(l, aes(x = component, y = mean_score)) + geom_bar(stat = "identity") + facet_wrap(~ Group.1) + coord_flip()
+
+# append cluster assignment
+teachertypes <- data.frame(tts_nona, fit$cluster)
+colnames(teachertypes)[24] <- "teachertype_cluster"
+
+# how many observations in each cluster
+tt_counts <- table(teachertypes$teachertype_cluster)
+barplot(tt_counts, main = "Teacher Type Cluster", 
+  	xlab = "Cluster")
+
+tt_counts 
+margin.table(tt_counts) # 702 observations
+prop.table(tt_counts)
+```
+
+## Quick round up on the clustering ##
+
+The k-means clustering was performed on 702 observations (rows with missing values were omitted). The clustering was performed on 22 variables, which were sets of 7/8/7 principal components derived from 3 sets of data (whyteach, whereteach, whymove). 5 clusters were settled on to ease intepretability. Note that I tried to do clustering separately just on the 4 PCs for whyteach, but this didn't help distinguish teacher types at all.
+
+The clusters were distributed as follows:
+
+Teacher Cluster | Number | Percentage
+--------------- | ------ | ----------
+1               | 125    | 17.8%
+2               | 93     | 13.2%
+3               | 146    | 20.89%
+4               | 206    | 29.3%
+5               | 132    | 18.8%
+
+``` {r making sense of the clusters - whyteach, echo = F}
+
+# look at the graph called "c" for write up
+c
+
+```
+
+The above plot shows the distributions of PCs by teacher type. 
+
+#### Type 1 teachers - ambitious and competent, school specific, family life matters ####
+This class of teachers can be described as:
+* teaching because they are interested in the subject, well qualified to teach, want to progress in their careers, and experience quality leadership and management in their schools. They are not teaching because of the pay, holidays, or because they need a job.
+* teaching in areas that are convenient for the family, where the school culture suits them and the pupil characteristics are a draw, and where the reputation of local schools attracts them. They do not teach in areas near their friends or university, and cost of living is not an issue.
+* moving to areas most strongly because of school specific reasons.
+
+#### Type 2 teachers - competent, happy where they are, school-specific factors keep them in teaching, won't move #### 
+This class of teachers can be described as:
+As less extreme version of Type 1 teachers i.e. similar in pattern but lower scores. The additional difference are that these teachers:
+* work in the areas they do because of many school specific factors i.e. behaviour and attainment of pupils in a particular school, culture of a particular school, quality of leadership and management in a particular school.
+* pay, holidays, and needing a job matter a bit more in terms of why they teach
+* they are the least willing group to move, but would move for better pay and also if it was convenient for the family.
+
+#### Type 3 teachers - like the job perks, family matters, school-specific, move to areas for more perks and convenience ####
+These teachers can be described as:
+* teaching partly because of pay, holidays and needing a job. They mainly teach because of subject interest and liking school culture, and because of quality of leadership and management.
+* teaching in the areas they do because of school-specific factors and because of family and social reasons. They don't teach in the areas they do because of university proximity or cost of living.
+* would be encouraged to move because of pay, being near to a partner, improved quality of life, if the school was commutable, career opportunities for family members, and good educational opportunities for their own children. They would basically move for an improved life so long as their family didn't lose out.
+
+#### Type 4 teachers - ambitious, competent, cost of living, want to be near friends, school-specific factors keeping them in teaching ####
+These teachers are:
+* got into teaching and stayed because of subject interest, being well qualified, opportunities for career progression, and quality leadership and management.
+* teaching where they do because of cost of living, quality of life and being near friends. Also because of school specific factors combined with quality of life factors.
+* willing to move to areas where there are school-specific factors attracting them (like behaviour or attainment), and good career opportunities, but also where it is convenient for the family and near to friends, and where they can still make a difference.
+
+#### Type 5 teachers - social justice oriented but pragmatic + competent and ambitious + like school culture  ####
+
+These can be described as:
+* the group least likely to be teaching because of pay, holidays or because they needed a job. They are teaching because of subject interest, qualifications, leadership and management, and career progression opportunities. They are also teaching because they really like the culture of schools.
+* teaching in the area they do because of all the typical reasons but also because they want to make a difference and because of the characteristics of pupils at a particular school
+* would be most willing to move to an area where they could make a difference but also if it is convenient for the family and commutable.
+
+## Descriptive tables of teacher types ##
+
+Now I need to add in teacher types clustering to my original full dataset. I just need to join my datasets together. Note that this will only give teacher type clusters for the 702 cases where a teacher type can be predicted.
+
+My original dataset is called "df". After I join the table, I can make descriptives.
+
+Note that all descriptives are based on the 702 cases with a teacher type cluster. Better descriptives can probably just be created using a pivot table in Excel.
+
+```{r adding in the teacher type clusters, tidy=T, message=F, warning=F}
+
+# make a new dataframe which has the PCs and teacher type cluster in it
+df2 <- dplyr::left_join(x = df, y = teachertypes, by = "RecordNo")
+
+# write out this dataset
+write.csv(df2, "/Users/meenaparam/Dropbox/LKMco Work/pearson/Pearson data and analysis/pearson_with_types.csv", col.names = TRUE)
+
+## Gender
+# make descriptives - gender
+t1 <- table(df2$profile_gender, df2$teachertype_cluster)
+t1
+
+# number of people in each class
+margin.table(t1, 2)
+
+# number of people in each gender
+margin.table(t1, 1)
+
+# cell percentages of the gender table
+prop.table(t1)
+
+# mosaic plot of the distibution
+mosaicplot(t1, dir = c("h", "v"), sort = c(2,1), main = "Gender distribution of teacher types", xlab = "Teacher type", ylab = "Gender")
+
+## Age
+# make descriptives - age
+t2 <- table(df2$profile_julesage, df2$teachertype_cluster)
+t2
+
+# cell percentages of the age table
+prop.table(t2)
+
+# mosaic plot of the distibution
+mosaicplot(t2, dir = c("h", "v"), sort = c(2,1), main = "Age distribution of teacher types", xlab = "Teacher type", ylab = "Age")
+
+## Region
+# make descriptives - region
+levels(df2$profile_govregnew)
+t3 <- table(df2$profile_govregnew, df2$teachertype_cluster, exclude = c("Wales", "Scotland", "Northern Ireland"), useNA = "no")
+t3
+
+# cell percentages of the region table
+prop.table(t3)
+
+# mosaic plot of the distibution
+mosaicplot(t3, dir = c("h", "v"), sort = c(2,1), main = "Regional distribution of teacher types", xlab = "Teacher type", ylab = "Region")
+```
+## Predicting teacher type membership - multinomial logits ###
+
+First I need to recode my predictors, then I can run the model. I will do all of this in a new, smaller dataframe. Then I will make the predicted probability plots.
+
+``` {r predicting teacher type membership, tidy = T, warning = F}
+
+# let's make a new teacher type cluster variable with labels
+mydf <- (df2$RecordNo)
+mydf <- as.data.frame(mydf)
+names(mydf)[names(mydf) == "mydf"] <- "recordno"
+
+library(car)
+
+mydf$type <- NA
+mydf$type <- recode(var = df2$teachertype_cluster, recodes = "1 = 'schoolcentric'; 2 = 'content'; 3 = 'perks'; 4 = 'pragmatic'; 5 = 'justice'", as.factor.result = T)
+table(mydf$type)
+table(mydf$type, df2$teachertype_cluster)
+
+# teacher type 2 is the most abundant so let's make that the reference category
+mydf$type  <- relevel(mydf$type, ref = "content")
+
+## let's also recode some of the other variables to make them usable
+
+# position
+levels(df2$teachQ1)
+
+mydf$position <- recode(var = df2$teachQ1, recodes = "'Teacher' = 'Teacher'; 'Other senior-level teacher (e.g. Key stage Leader, Assessment Leader)' = 'MLT'; c('Headteacher/ Principal', 'Deputy or Assistant Headteacher') = 'SLT'", levels = c('Teacher', 'MLT', 'SLT'))
+table(mydf$position)
+
+# gender 
+mydf$gender <- df2$profile_gender
+mydf$gender <- relevel(mydf$gender, ref = "Female")
+table(mydf$gender)
+
+# region
+levels(df2$profile_govregnew)
+mydf$region <- recode(var = df2$profile_govregnew, recodes = "'North' = 'North'; 'Midlands' = 'Midlands'; 'East' = 'East'; 'London' = 'London'; 'South' = 'South'; else = NA", levels = c('South', 'North', 'Midlands', 'East', 'London'))
+table(mydf$region)
+
+# age
+table(df2$profile_julesage)
+mydf$agegroup <- recode(var = df2$profile_julesage, recodes = "c('18-24', '25-34') = '18-35'; '35-44' = '35-44'; '45-54' = '45-54'; '55+' = '55+'")
+mydf$agegroup <- relevel(mydf$agegroup, ref = "55+")
+table(mydf$agegroup)
+
+# phase
+table(df2$SHteachQ2)
+mydf$phase <- recode(var = df2$SHteachQ2, recodes = "c('Infant','Early years','Primary','Middle') = 'Primary/Middle' ; 'Secondary' = 'Secondary' ; 'Further education (FE)' = 'FE'; 'All through' = 'All through'", levels = c('Secondary', 'Primary/Middle', 'FE', 'All through'))
+table(mydf$phase)
+
+# years teaching
+table(df2$HPW_2OE_rc)
+mydf$years <- df2$HPW_2OE_rc
+mydf$years <- relevel(mydf$years, ref = 'More than 20 years')
+table(mydf$years)
+
+## use the multinom function from the nnet package to estimate the model
+library(nnet)
+
+# run the model with some demographic controls
+m1 <- multinom(type ~ position + gender + region + agegroup + years + phase, data = mydf)
+
+# look at the summary results
+summary(m1)
+
+# get z scores
+z <- summary(m1)$coefficients/summary(m1)$standard.errors
+z
+
+# 2-tailed z test
+p <- (1 - pnorm(abs(z), 0, 1)) * 2
+p
+
+# scanning these results I see that years spent teaching is not significant, probably because age is already in the model. I'll repeat without years in there.
+m2 <- multinom(type ~ position + gender + region + agegroup + phase, data = mydf)
+summary(m2)
+z <- summary(m2)$coefficients/summary(m2)$standard.errors
+z
+
+# 2-tailed z test
+p <- (1 - pnorm(abs(z), 0, 1)) * 2
+p
+
+# get predicted probabilities for model 2 and store them in a df
+m2_pp <- fitted(m2)
+mydf_pp <- cbind(subset(mydf, !is.na(mydf$type)), m2_pp)
+
+## Region
+
+# calculate the predicted probabilities within each region and store them
+region_pp <- by(mydf_pp[, 9:13], mydf_pp$region, colMeans)
+region_pp <- cbind(region_pp$South, region_pp$North, region_pp$Midlands, region_pp$East, region_pp$London)
+region_pp <- as.data.frame(region_pp)
+names(region_pp) <- c("South", "North", "Midlands", "East", "London")
+
+# transpose the data and make region a column
+region_pp <- t(region_pp)
+region_pp <- as.data.frame(region_pp)
+region_pp$region <- NA
+region_pp$region <- rownames(region_pp)
+rownames(region_pp) <- 1:nrow(region_pp)
+
+# reshape the data
+region_pp_long <- tidyr::gather(region_pp, key = region, value = probability)
+colnames(region_pp_long)[2] <- "teachertype"
+
+# make a plot of the predicted probabilities
+library (ggplot2)
+g_region <- ggplot(region_pp_long, aes(x = factor(teachertype), y = probability )) + geom_bar(stat = "identity") + facet_grid(~region) + theme_grey(base_size = 9) + xlab("Teacher type") + ylab("Average predicted probability of teacher type")
+g_region
+
+## Position
+
+# calculate the predicted probabilities within each position and store them
+position_pp <- by(mydf_pp[, 9:13], mydf_pp$position, colMeans)
+position_pp <- cbind(position_pp$Teacher, position_pp$MLT, position_pp$SLT)
+position_pp <- as.data.frame(position_pp)
+names(position_pp) <- c("Teacher", "MLT", "SLT")
+
+# transpose the data and make position a column
+position_pp <- t(position_pp)
+position_pp <- as.data.frame(position_pp)
+position_pp$position <- NA
+position_pp$position <- rownames(position_pp)
+rownames(position_pp) <- 1:nrow(position_pp)
+
+# reshape the data
+position_pp_long <- tidyr::gather(position_pp, key = position, value = probability)
+colnames(position_pp_long)[2] <- "teachertype"
+
+# make a plot of the predicted probabilities
+library (ggplot2)
+g_position <- ggplot(position_pp_long, aes(x = factor(teachertype), y = probability )) + geom_bar(stat = "identity") + facet_grid(~ position) + theme_grey(base_size = 9) +  xlab("Teacher type") + ylab("Average predicted probability of teacher type")
+g_position
+
+## Phase
+
+# calculate the predicted probabilities within each phase and store them
+phase_pp <- by(mydf_pp[, 9:13], mydf_pp$phase, colMeans)
+phase_pp <- cbind(phase_pp$Secondary, phase_pp$`Primary/Middle`, phase_pp$FE, phase_pp$`All through`)
+phase_pp <- as.data.frame(phase_pp)
+names(phase_pp) <- c("Secondary", "Primary/Middle", "FE", "All through")
+
+# transpose the data and make phase a column
+phase_pp <- t(phase_pp)
+phase_pp <- as.data.frame(phase_pp)
+phase_pp$phase <- NA
+phase_pp$phase <- rownames(phase_pp)
+rownames(phase_pp) <- 1:nrow(phase_pp)
+
+# reshape the data
+phase_pp_long <- tidyr::gather(phase_pp, key = phase, value = probability)
+colnames(phase_pp_long)[2] <- "teachertype"
+
+# make a plot of the predicted probabilities
+library (ggplot2)
+g_phase <- ggplot(phase_pp_long, aes(x = factor(teachertype), y = probability )) + geom_bar(stat = "identity") + facet_grid(~ phase) + theme_grey(base_size = 9) + xlab("Teacher type") + ylab("Average predicted probability of teacher type") 
+g_phase
+
+## Gender
+
+# calculate the predicted probabilities within each gender and store them
+gender_pp <- by(mydf_pp[, 9:13], mydf_pp$gender, colMeans)
+gender_pp <- cbind(gender_pp$Female, gender_pp$Male)
+gender_pp <- as.data.frame(gender_pp)
+names(gender_pp) <- c("Female", "Male")
+
+# transpose the data and make gender a column
+gender_pp <- t(gender_pp)
+gender_pp <- as.data.frame(gender_pp)
+gender_pp$gender <- NA
+gender_pp$gender <- rownames(gender_pp)
+rownames(gender_pp) <- 1:nrow(gender_pp)
+
+# reshape the data
+gender_pp_long <- tidyr::gather(gender_pp, key = gender, value = probability)
+colnames(gender_pp_long)[2] <- "teachertype"
+
+# make a plot of the predicted probabilities
+library (ggplot2)
+g_gender <- ggplot(gender_pp_long, aes(x = factor(teachertype), y = probability )) + geom_bar(stat = "identity") + facet_grid(~ gender) + theme_grey(base_size = 9) + xlab("Teacher type") + ylab("Average predicted probability of teacher type")
+g_gender
+
+## Agegroup
+
+# calculate the predicted probabilities within each agegroup and store them
+agegroup_pp <- by(mydf_pp[, 9:13], mydf_pp$agegroup, colMeans)
+agegroup_pp <- cbind(agegroup_pp$`18-35`, agegroup_pp$`35-44`, agegroup_pp$`45-54`, agegroup_pp$`55+`)
+agegroup_pp <- as.data.frame(agegroup_pp)
+names(agegroup_pp) <- c("18-35", "35-44", "45-54", "55+")
+
+# transpose the data and make agegroup a column
+agegroup_pp <- t(agegroup_pp)
+agegroup_pp <- as.data.frame(agegroup_pp)
+agegroup_pp$agegroup <- NA
+agegroup_pp$agegroup <- rownames(agegroup_pp)
+rownames(agegroup_pp) <- 1:nrow(agegroup_pp)
+
+# reshape the data
+agegroup_pp_long <- tidyr::gather(agegroup_pp, key = agegroup, value = probability)
+colnames(agegroup_pp_long)[2] <- "teachertype"
+
+# make a plot of the predicted probabilities
+library (ggplot2)
+g_agegroup <- ggplot(agegroup_pp_long, aes(x = factor(teachertype), y = probability )) + geom_bar(stat = "identity") + facet_grid(~ agegroup) + theme_grey(base_size = 9) + xlab("Teacher type") + ylab("Average predicted probability of teacher type")
+g_agegroup
+
+```
+
+
+## Predicting teacher drop-out ##
+
+```{r predicting teacher drop-out}
+
+# make a df with just the recordno and dropout variable
+names(df)
+drop_df <- df[, c(1,202)]
+colnames(drop_df)[2] <- "leave"
+drop_df$leave <- recode(var = drop_df$leave, recodes = '"Strongly agree" = "Strongly agree" ; "Tend to agree" = "Agree" ; "Tend to disagree" = "Disagree"; "Strongly disagree" = "Strongly disagree"; "Don\'t know/ can\'t recall" = "NA"', levels = c("Strongly disagree", "Disagree", "Agree", "Strongly agree"))
+levels(drop_df$leave)
+colnames(drop_df)[1] <- "recordno"
+
+# add in the dropout variable
+mydf<- dplyr::left_join(mydf, drop_df, by = "recordno")
+
+# make a dropout dummy
+mydf$dropout <- NA
+mydf$dropout <- recode(var = mydf$leave, recodes = 'c("Strongly agree", "Agree") = "Yes" ; c("Disagree", "Strongly disagree") = "No"', levels = c("No", "Yes"))
+table(mydf$dropout)
+
+## run the dropout model - binary logistic
+
+# run the model with some demographic controls + type
+model_dropout <- glm (dropout ~ position + gender + region + agegroup + phase + type, data = mydf, family = "binomial", na.action = na.omit)
+
+# look at the results
+summary(model_dropout)
+
+# look at the coefficients as odds-ratios (take exponent of logit coefficients)
+exp(model_dropout$coefficients)
+
+## Young teachers (18-35) significantly less likely (odds-ratio = 0.59 - remember, an OR of 1 means equally likely) to say they have considered leaving the profession in the last 6 months compared to the reference group of teachers aged 55+, all else held constant. All through teachers are also significantly less likely (OR = 0.43) to report wanting to leave compared to secondary teachers. Pragmatic teacher types are significantly more likely (OR = 2.16, so twice as likely) to report considering leaving compared to the reference group of content teachers.
+
+# get predicted probabilities for model_leave and store them in a df
+md_pp <- fitted(model_dropout) # 688 obs
+md_pp <- as.data.frame(md_pp)
+md_pp$recordno <- NA
+md_pp$recordno <- rownames(md_pp)
+md_pp$recordno <- as.numeric(md_pp$recordno)
+mydf_ppleave <- dplyr::left_join(mydf, md_pp, by = "recordno")
+colnames(mydf_ppleave)[11] <- "prob_dropout"
+
+## Region
+
+# calculate the predicted probabilities within each region and store them
+library(dplyr)
+dropout_region_pp <- mydf_ppleave %>% group_by(region) %>% summarise(avg_prob_dropout = mean(prob_dropout, na.rm = T))
+
+# make a plot of the predicted probabilities of dropout by region
+library (ggplot2)
+g_region_dropout <- ggplot(dropout_region_pp, aes(x = factor(region), y = avg_prob_dropout)) + geom_bar(stat = "identity") + theme_grey(base_size = 9) + xlab("Region") + ylab("Average probability of considering leaving profession")
+g_region_dropout
+
+## Teacher type
+
+# calculate the predicted probabilities within each teacher type and store them
+library(dplyr)
+dropout_type_pp <- mydf_ppleave %>% group_by(type) %>% summarise(avg_prob_dropout = mean(prob_dropout, na.rm = T))
+
+# make a plot of the predicted probabilities of dropout by region
+library (ggplot2)
+g_type_dropout <- ggplot(dropout_type_pp, aes(x = factor(type), y = avg_prob_dropout)) + geom_bar(stat = "identity") + theme_grey(base_size = 9) + xlab("Teacher Type") + ylab("Average probability of considering leaving profession")
+g_type_dropout
+
+## Phase
+
+# calculate the predicted probabilities within each phase and store them
+library(dplyr)
+dropout_phase_pp <- mydf_ppleave %>% group_by(phase) %>% summarise(avg_prob_dropout = mean(prob_dropout, na.rm = T))
+
+# make a plot of the predicted probabilities of dropout by region
+library (ggplot2)
+g_phase_dropout <- ggplot(dropout_phase_pp, aes(x = factor(phase), y = avg_prob_dropout)) + geom_bar(stat = "identity") + theme_grey(base_size = 9) + xlab("Phase") + ylab("Average probability of considering leaving profession")
+g_phase_dropout
+```
+
+The probabilities in the graphs above don't look so different - perhaps the use of average probabilities and the grouping factors don't show much difference. Maybe I need to model probabilities separately without all the variables being in one model all at once.

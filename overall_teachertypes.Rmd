@@ -1,0 +1,349 @@
+---
+title: "Teacher types - overall LCA final"
+author: "Meenakshi Parameshwaran"
+date: "10 August 2015"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+# An LCA of the LCA teacher types #
+
+This is all going to be a bit meta, but why not run a latent class analysis of the four sets of latent classes (teacher types) that I've derived already? That way, I'll be able to identify an overall teacher type.
+
+```{r load up, tidy=TRUE, echo=FALSE, tidy=T, warning=F, message=F}
+
+library(poLCA)
+
+# load the workspace with the relevant objects in it
+load("~/Dropbox/LKMco Work/Pearson/Pearson data and analysis/LCA_workspace.RData")
+
+# store all the teacher types in one variable
+# names(join4)
+f1 <- cbind(whyjoin_type, whystay_type, whereteach_type, whymove_type) ~ 1
+```
+
+```{r running the LCA models, tidy=T}
+# 1. First model, two classes
+m1 <- poLCA(f1, maxiter=50000, nclass=2, nrep=30, data = join4)
+# 2. Second model, three classes
+m2 <- poLCA(f1, maxiter=50000, nclass=3, nrep=30, data = join4)
+# 3. Third model, four classes
+m3 <- poLCA(f1, maxiter=50000, nclass=4, nrep=30, data = join4)
+# 4. Fourth model, five classes
+m4 <- poLCA(f1, maxiter=50000, nclass=5, nrep=30, data = join4)
+
+# store the fit statistics of these four models in an array
+fitstats <- array(NA, dim = c(5, 7))
+colnames(fitstats) <- c("model", "AIC", "BIC", "G2", "Chi2", "MaxLL", "df")
+fitstats[1,] <- c("m1", m1$aic, m1$bic, m1$Gsq, m1$Chisq, m1$llik, m1$resid.df)
+fitstats[2,] <- c("m2", m2$aic, m2$bic, m2$Gsq, m2$Chisq, m2$llik, m2$resid.df)
+fitstats[3,] <- c("m3", m3$aic, m3$bic, m3$Gsq, m3$Chisq, m3$llik, m3$resid.df)
+fitstats[4,] <- c("m4", m4$aic, m4$bic, m4$Gsq, m4$Chisq, m4$llik, m4$resid.df)
+
+# 5. Fifth model, six classes
+m5 <- poLCA(f1, maxiter=50000, nclass=6, nrep=30, data = join4)
+fitstats[5,] <- c("m5", m5$aic, m5$bic, m5$Gsq, m5$Chisq, m5$llik, m5$resid.df)
+
+```
+
+```{r evaluating the models and describing them, tidy=T, warning=F, message=F, results='asis'}
+
+# check the fitstats to see which model is best (where is the BIC lowest?)
+knitr::kable(fitstats)
+
+# model 3 is best, how many observations was this estimated on?
+m3$Nobs
+```
+
+# The plot of the latent class distribution from model 3 #
+
+```{r looking at m3 plot, echo=F, tidy=T}
+plot(m3)
+```
+
+# Overall teacher types - results with more description #
+
+Based on the above plot of our preferred latent class model and the fit statistics, we can see that the four class solution is best. So what are these four overall teacher types?
+
+Overall Teacher Cluster | Number | Percentage
+------------------------| ------ | ----------
+1                       | 141    | 20.1%
+2                       | 170    | 24.1%
+3                       | 243    | 34.6%
+4                       | 150    | 21.3%
+
+ 
+### Overall class 1: moderate, selfless, school-centred teachers
+This type makes up 20% of teachers. They are predominantly from whyjoin type 1 and 2 (moderate teachers with most factors being fairly important; and impersonal/unselfish teachers); whystay type 2 (impersonal factors); whereteach type 2 and 3 (communters and impersonal factors); and whymove types 2 and 3 (school specific-factors and the good life; won't movers) Although whymove isn't clearly split out as there are some of this class in all groups.
+
+__Why they join__
+
+* Most teachers in this class are "moderate teachers", who responded "fairly important" to almost all questions on why they joined the profession. They do not have extreme opinions ("very important" or "not at all important"), in either direction, as to why they joined teaching. They seem to have been motivated by most of the expected factors.
+
+* A smaller group of teachers in this class are "impersonal or unselfish teachers". Whilst most factors were considered of middling importance, the majority of teachers in this group reported that personal factors (pay, holidays, liking school culture, opportunities for career progression, and quality leadership and management) were all "not at all important" reasons for their joining the profession (hence the label of "impersonal"). 
+
+__Why they stay__
+
+* For most teachers in this class, no factors really stand out in terms of why they stay, except the factors that are reported to be not at all important in terms of keeping them in teaching.
+
+* Interestingly, these teachers are not staying in teaching because they like school culture, for the opportunities for career progression, or because of quality of leadership and management. As such, they are not motivated by moving up the career ladder - they seem to stay in teaching because they are interested in the subject, want to make a difference etc. rather than because they want to be in charge one day.
+
+* The other thing of interest is that most people in this group report needing a job as being very important to why they stay in taching.
+
+__Where they teach__
+
+Teachers are split into two underlying classes - class 2 and class 3. For those in class 2:
+
+* For the first group of teachers, most factors were not influential in terms of where they teach, except for commutability, by which they were "influenced a lot". As such, they are "commuters".
+
+* They are polarised on issues of family and partner, with around half the group saying it didn't influence them at all, and the other half saying it influenced them a lot.
+
+* The other group within this class of teachers are influenced more by school-specific factors in terms of where they teach. They report being not at all influenced by any personal factors or quality of life or cost of living.
+
+__Why they'd move__
+
+* One group of teachers in this class would move for school-specific factors and in pursuit of the "good life". They are not particularly encouraged to move because of making a difference to society, the community or pupils. They are not encouraged to move for pupils characteristics in a particular area or family career opportunities. They are encouraged a bit or a lot by factors like: the quality of life, cost of living, and commutability. 
+
+* They are encouraged a bit or a lot by school specific factors: quality of leadership and management, pupil attaiment, school culture, pupil behaviour, and the reputation of schools in the areas. 
+
+* The other group in this cluster is identified by the overwhelming response of "it wouldn't encourage me at all" to every factor listed. This group are happy where they are and won't move.
+
+-----
+
+### Overall class 2: moderate, motivated, flexible teachers (open to options)
+
+This type makes up almost 25% of teachers. They are concentrated in whyjoin type 1 (moderate teachers - most factors are fairly important); whystay type 1 (moderate teachers - most factors are fairly important); whereteach types 1 and 5 (no strong influences; pragmatic and school-specific factors); and whymove type 6 (fairly open to a move - most factors encourage them a bit + making difference + school-specific factors).
+
+__Why they join__
+
+* Most teachers in this class are "moderate teachers", who responded "fairly important" to almost all questions on why they joined the profession. They do not have extreme opinions ("very important" or "not at all important"), in either direction, as to why they joined teaching. They seem to have been motivated by most of the expected factors.
+
+__Why they stay__
+
+* Most factors are fairly important in terms of keeping this group in teaching. The factors are mostly reported on as being fairly important, with occasional reporting of not very/not at all important. This group is pretty "moderate" and middle of the road in terms of responses.
+
+__Where they teach__
+
+* For one group within this class, there aren't really that many strong influences in terms of where they teach. This group were influenced a bit by commutability, quality of education for own children, and making a difference to society, making a difference to pupils.
+
+* For the other group within this class, they are influenced by school-specific and pragmatic reasons. Influenced a lot by partner and family proximity (not at all by uni). Quality of life, cost of living and commutability all are strong influences. Influenced a lot by making a difference to pupils, quality of L&M, and all school-related factors.
+
+__Why they'd move__
+
+* Most teachers in this cluster can be described as being fairly open to a move, with most factors encouraging them "a bit". Closeness to partner is the one factors where the majority say it would encourage them a lot. This class is similar to class 4 (those who would move to the right school), but different in that it they would be encouraged by both school-specific facotrs but also opportunities to make a difference to society, community and pupils.
+
+### Overall class 3: socially committed idealists
+This type makes up over a third of teachers. They are concentrated in whyjoin type 3 (socially committed idealists); whystay type 5 (all factors keep them in teaching but less concerned by pay and holidays); whereteach type 4 (want to make a difference); and across all whymove types.
+
+__Why they join__
+
+* Teachers in this cluster are predominantly from one underlying whyjoin class. They joined the profession because of subject interest, wanting to work with children and YP, and wanting to make a difference to pupils and society. They are different to class 2 teachers in that they think the following factors were less important as to why they joined the profession: being well qualified to do it; needing a job.
+
+__Why they stay__
+
+* All factors are important to this group (class 5) in terms of why they have stayed in teaching. The factors with the greatest proportions of "very important" ratings are: subject interest, desire to work with children and young people, make a difference to society, make a difference to pupils, good at it, well qualified, and needed a job. They are less materialistic than class 4 teachers, as pay and holidays are only fairly important factors (rather than very important), as is their liking of school culture. Class 5 also do not really report nothing to switch to as being a very important factor
+
+__Where they teach__
+
+* This group teaches in areas where they can make a difference. This group were polarised in terms of the influence of partner proximity, but were influenced a lot by being near to family. Uni proximity is not at all influnencing. They were influenced a lot by commutability, making a difference to society, the comunity and to pupils.
+
+__Why they'd move__
+
+* There is no clearly defined pattern in terms of the factors that would encourage this cluster to move. There are members of this cluster providing responses across the full range to all the questions on factors that would encourage them to move.
+
+### Overall class 4: school-centred socially committed pragmatists
+This type makes up just over 20% of the sample of teachers. They are concentrated in whyjoin types 3 and 4 (socially committed idealists; socially comitted pragmatists); whystay type 4 (all factors are important, but especially making a difference, subject interest and being well qualified); whereteach type 5 (pragmatic (cost of living, quality of life, commuting) and school-specific factors (making a difference to pupils, quality leadership and management, all school-related factors)); and whymove type 4 (open to a move - to the right school as they are looking for a school with quality leadership and management and a school culture they like).
+
+__Why they join__
+
+* Most teachers in this cluster are in this class. They joined the profession because of subject interest, wanting to work with children and YP, and wanting to make a difference to pupils and society. They are different to class 2 teachers in that they think the following factors were _less_ important as to why they joined the profession: being well qualified to do it; needing a job.
+
+* Like the class above (class 3), teachers in class 4 joined the profession because of subject interest, wanting to work with children and YP, and wanting to make a difference to pupils and society. Unlike class 3 teachers, they thought that pay and holidays were more important factors for joining the profession (making them slightly more materialistic/pragmatic). They also reported that being good at teaching, being well qualified, and needing a job were all very important reasons for going into teaching (unlike class 3).
+
+__Why they stay__
+
+*All factors are important to this group in terms of why they have stayed in teaching. The factors with the greatest proportions of "very important" ratings are: 
++ subject interest
++ desire to work with children and young people
++ make a difference to society
++ make a difference to pupils
++ good at it
++ well qualified
++ needed a job. 
+
+* This class also has most members reporting that pay and holidays are very important, alongside school culture and there being nothing to switch to.
+
+__Where they teach__
+
+* This cluster teach in regions because of pragmatic factors. They are also influenced by school specific factors.
+
+* Influenced a lot by partner and family proximity (not at all by uni).
+
+* Quality of life, cost of living and commutability all are strong influences. 
+
+* Influenced a lot by making a difference to pupils, quality of L&M, and all school-related factors.
+
+__Why they'd move__
+
+* This cluster is open to a move, to the right school. They idenfitiable by their positive responses to factor that would encourage them to move. 
+
+* Almost all factors are responded to by "it would encourage me a bit" or "it would encourage me a lot". 
+
+* Partner, quality of life, cost of living and commutability all feature as factors with most people choosing encouraging a lot. 
+
+* They are also encouraged a lot by school specific factors - all the school options given, but particularly quality of leadership and management, and the culture of the school.
+
+---------------------------------------------------------------------------
+# The original underlying teacher types #
+
+These are the original four sets of teacher types, which I have combined to get to the overall set above. I've copied them in here as a reminder of these underlying types.
+
+### "whyjoin" teacher type clusters (n = 883) ###
+
+Teacher Cluster | Number | Percentage
+--------------- | ------ | ----------
+1               | 320    | 36.2%
+2               | 93     | 10.5%
+3               | 358    | 40.5%
+4               | 112    | 12.7%
+
+
+Class 1: moderate teachers
+
+This class of teachers joined the profession because of all of the factors listed, reporting that these factors were mostly "fairly important". They are moderate teachers, who do not have extreme opinions, in either direction, on why they joined teaching.
+
+Class 2: impersonal/unselfish teachers
+
+This class of teachers is the smallest and stands out by the factors that this group though were not at all important. Whilst most factors were considered of middling importance, the majority of teachers in this group reported that personal factors (pay, holidays, liking school culture, opportunities for career progression, and quality leadership and management) were all "not at all important" reasons for their joining the profession.
+
+Class 3: socially committed, idealistic teachers
+
+This class of teachers is the largest. Teachers in this class joined the profession because of subject interest, wanting to work with children and YP, and wanting to make a difference to pupils and society. They are different to class 2 teachers in that they think the following factors were _less_ important as to why they joined the profession: being well qualified to do it; needing a job.
+
+Class 4: socially committed, pragmatic teachers
+
+Like class 3 teachers, teachers in class 4 joined the profession because of subject interest, wanting to work with children and YP, and wanting to make a difference to pupils and society. Unlike class 3 teachers, they thought that pay and holidays were more important factors for joining the profession. They also reported that being good at teaching, being well qualified, and needing a job were all very important reasons for going into teaching (unlike class 3).
+
+### "whystay" teacher type clusters (n = 913) ###
+
+####_I am not sure the "whystay" set of clusters really separate out types of teachers that much substantively._
+
+Teacher Cluster | Number | Percentage
+--------------- | ------ | ----------
+1               | 235    | 25.7%
+2               | 124    | 13.6%
+3               | 62     | 7.00%
+4               | 146    | 16.0%
+5               | 346    | 37.9%
+
+Class 1: most factors are fairly important (moderate teachers)
+
+Most factors are fairly important in terms of keeping this group in teaching. The factors are mostly reported on as being fairly important, with occasional reporting of not very/not at all important.
+
+Class 2: impersonal factors
+
+For this class, nothing really stands out, except the factors that are reported to be not at all important in terms of keeping them in teaching. These factors are liking school culture, opportunities for career progression, and quality of leadership and management. The other thing of interest is that most people in this group report needing a job as being very important.
+
+Class 3: most factors not very important
+
+This group is something of a mystery, as most factors are being reported as fairly or not very important - it's not clear what _is_ important to this group.
+
+Class 4: all factors keep them in teaching
+
+All factors are important to this group in terms of why they have stayed in teaching. The factors with the greatest proportions of "very important" ratings are: subject interest, desire to work with children and young people, make a difference to society, make a difference to pupils, good at it, well qualified, and needed a job. Class 4 also have most members reporting that pay and holidays are very important, alongside school culture and there being nothing to switch to.
+
+Class 5: similar to class 4 but less materialistic
+
+Class 5 teachers are like class 4 teachers except pay and holidays are only fairly important factors, as is their liking of school culture. Class 5 also do not really report nothing to switch to as being a very important factor.
+
+### "whereteach" teacher type clusters (n = 887) ###
+
+_The plot for this one isn't so easy to interpret because there are 21 variables in it._
+
+Teacher Cluster | Number | Percentage
+--------------- | ------ | ----------
+1               | 132    | 14.9%
+2               | 154    | 17.3%
+3               | 174    | 19.6%
+4               | 171    | 19.3%
+5               | 124    | 14.0%
+6               | 132    | 14.9%
+
+Class 1: no strong influences
+
+This group were influenced a bit by commutability, quality of education for own children, and making a difference to society, making a difference to pupils.
+
+Class 2: commuting matters, as does family/partner (for some memebrs)
+
+Most factors didn't influence the teachers in this class at all, except for commutability, by which they were "influenced a lot". They are polarised on issues of family and partner, with around half the group saying it didn't influence them at all, and the other half saying it influenced them a lot.
+
+Class 3: not influenced by personal factors
+
+This group were fairly evenly split for the seocond half of factors (school related factors) in terms of the degree to which it influenced them. They report being not at all influenced by any personal factors or quality of life or cost of living.
+
+Class 4: want to make a difference
+
+This group were polarised in terms of the influence of partner proximity, but were influenced a lot by being near to family. Uni proximity is not at all influnencing. They were influenced a lot by commutability, making a difference to society, the comunity and to pupils.
+
+Class 5: pragmatic and influenced by school specific factors
+
+Influenced a lot by partner and family proximity (not at all by uni). Quality of life, cost of living and commutability all are strong influences. Influenced a lot by making a difference to pupils, quality of L&M, and all school-related factors.
+
+Class 6:  all factors fairly influential except personal ones
+
+This group isn't influenced by being close to friends/partners/family/uni. All other factors are fairly influential. School culture is very influential.
+
+### "whymove" teacher type clusters (n = 814) ###
+
+_The plot for this one isn't so easy to interpret because there are 21 variables in it._
+
+Teacher Cluster | Number | Percentage
+--------------- | ------ | ----------
+1               | 130    | 16.0%
+2               | 110    | 13.5%
+3               | 87     | 10.7%
+4               | 260    | 31.9%
+5               | 60     | 7.37%
+6               | 167    | 20.5%
+
+Class 1: want to make a difference
+
+This group would not be encouraged at all to move to be near uni. They would be encouraged a lot to move by commutability and being able to make a difference to society, the community and to pupils.
+
+Class 2: school-specific factors and the good life
+
+Again, this cluster would not be motivated to move to be near university. They are not particularly encouraged to move because of making a difference to society, the community or pupils. They are not encouraged to move for pupils characteristics in a particular area or family career opportunities. They are encouraged a bit or a lot by factors like the quality of life, cost of living, and commutability. They are encouraged a bit or a lot by school specific factors: quality of leadership and management, pupil attaiment, school culture, pupil behaviour, and the reputation of schools in the areas. 
+
+Class 3: Won't move
+
+This cluster is identifiable by the overwhelming response of "it wouldn't encourage me at all" to every factor listed. This group are happy where they are and won't move.
+
+Class 4: open to a move (to the right school)
+
+This cluster is idenfitiable by their positive responses to factor that would encourage them to move. Almost all factors are responded to by "it would encourage me a bit" or "it would encourage me a lot". Partner, quality of life, cost of living and commutability all feature as factors with most people choosing encouraging a lot. They are also encouraged a lot by school specific factors - all the school options given, but particularly quality of leadership and management, and the culture of the school.
+
+Class 5: reluctant to move
+
+This cluster is reluctant to move, with most responses to factors being "it wouldn't encourage me much" or "it wouldn't encourage me at all". There are slightly more positive responses to do with personal factors, like being near friends and family, and also cost of living, quality of life and quality of education for one's own children. School specific factors do not seem to encourage them particularly.
+
+Class 6: fairly open to a move (to the right school and if they can make a difference)
+
+This cluster appears to be fairly open to a move, with most factors encouraging them "a bit". Closeness to partner is the one factors where the majority say it would encourage them a lot. This class is similar to class 4 (those who would move to the right school), but different in that it they would be encouraged by both school-specific facotrs but also opportunities to make a difference to society, community and pupils.
+
+```{r make a df with overall type and write this back to csv}
+# make a df just with record no and the four sets of teacher types
+join5 <- join4[, c(1, 236:239)]
+# only keep complete cases
+join5 <- join5[complete.cases(join5),]
+# add in the overall type column
+join5$overall_type <- m3$predclass
+# make a df just with the recordno and overall type column
+join5 <- join5[, c(1,6)]
+# join that back into the join4 df
+join6 <- dplyr::left_join(join4, join5, by = "RecordNo")
+# write this back out to csv
+write.csv(x = join6, file = "pearson_overalltypes.csv", row.names = T)
+```
